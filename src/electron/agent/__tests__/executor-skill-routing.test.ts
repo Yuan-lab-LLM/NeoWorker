@@ -153,7 +153,16 @@ describe("TaskExecutor skill shortlist routing", () => {
     );
   });
 
-  it("routes ordinary PowerPoint creation through Presentation Studio", async () => {
+  it.each([
+    "分析 MiniMax 股票，并生成一个 PPT。",
+    "基于材料内容，输出一个PPT文档",
+    "基于PDF内容，输出一个PPT文档",
+    "将这份材料转换为演示文稿",
+    "给我一份产品介绍PPT",
+    "导出一份PPT文档",
+    "Output a PowerPoint presentation based on the document",
+    "Prepare slides for the product briefing",
+  ])("routes ordinary PowerPoint requests through Presentation Studio: %s", async (prompt) => {
     rankModelInvocableSkillsForQuery.mockReturnValue([
       {
         skill: {
@@ -169,7 +178,7 @@ describe("TaskExecutor skill shortlist routing", () => {
         score: 0.92,
       },
     ]);
-    const executor = createExecutor("分析 MiniMax 股票，并生成一个 PPT。");
+    const executor = createExecutor(prompt);
     executor.toolRegistry.executeTool.mockImplementation(async (name: string, input: Any) => {
       expect(name).toBe("Skill");
       expect(input).toEqual({
@@ -570,6 +579,35 @@ describe("TaskExecutor skill shortlist routing", () => {
         }),
       ]),
     );
+  });
+
+  it("uses exact form values, replaces earlier parameters, and fails visibly if the selected skill cannot load", async () => {
+    const values = { docType: "安装指南", brand: "Q", docLanguage: "英文", count: 0, strict: false };
+    const executor = createExecutor("审校附件，输出修订版 Word", {
+      agentConfig: { requestedSkillId: "writing-standard", requestedSkillParameters: values },
+    }) as Any;
+    executor.appliedSkills = [{ skillId: "writing-standard", skillName: "规范", args: '{"brand":"I"}', parameters: { brand: "I" }, content: "旧品牌 I", trigger: "explicit_hint" }];
+    executor.toolRegistry.executeTool.mockImplementation(async (_name: string, input: Any) => {
+      expect(input.trigger).toBe("slash");
+      expect(JSON.parse(input.args)).toEqual(values);
+      const invocationId = "exact-form-values";
+      executor.__resolvedInvocations.set(invocationId, {
+        skillId: input.skill, skillName: "规范", args: input.args, parameters: values,
+        content: "新品牌 Q，英文审校", trigger: input.trigger, reason: "Selected in form", appliedAt: Date.now(),
+      });
+      return { success: true, skill_invocation_id: invocationId };
+    });
+    expect(await executor.maybeAutoApplyConfiguredTaskSkill()).toBe(true);
+    expect(executor.task.prompt).toBe("审校附件，输出修订版 Word");
+    expect(executor.appliedSkills).toHaveLength(1);
+    expect(executor.buildAppliedSkillContext()).not.toContain("旧品牌 I");
+    expect(executor.buildAppliedSkillContext()).toContain("新品牌 Q");
+    await executor.maybeAutoApplyConfiguredTaskSkill();
+    expect(executor.toolRegistry.executeTool).toHaveBeenCalledTimes(1);
+    executor.task.agentConfig.requestedSkillParameters = { ...values, brand: "A" };
+    executor.toolRegistry.executeTool.mockResolvedValue({ success: false, unavailable: true, error: "Skill unavailable" });
+    await expect(executor.maybeAutoApplyConfiguredTaskSkill()).rejects.toThrow("Skill unavailable");
+    expect(executor.appliedSkills[0].parameters.brand).toBe("Q");
   });
 
   it("continues a structured task when its optional skill is unavailable", async () => {

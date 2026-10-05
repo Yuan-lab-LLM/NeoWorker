@@ -8,19 +8,29 @@ import {
   resolvePlatformFonts,
 } from "./runtime-utils.mjs";
 import { recommendStyleRoute } from "./planning-contract.mjs";
+import { DESIGN_FAMILIES, recommendDesignFamily } from "./layout-catalog.mjs";
+import { extractSourceAssets } from "./source-assets.mjs";
 
 const args = parseArgs(process.argv.slice(2));
 if (!args["project-dir"]) {
   console.error(
-    "Usage: node bootstrap_project.mjs --project-dir <dir> [--language auto] [--style soft] [--palette analysis] [--title title]",
+    "Usage: node bootstrap_project.mjs --project-dir <dir> [--source <DOCX/PPTX>] [--language auto] [--design-family auto|business|technology|research] [--layout-engine catalog-v1|modules] [--style soft] [--palette auto] [--title title]",
   );
   process.exit(2);
 }
 
 const projectDir = path.resolve(args["project-dir"]);
+for (const file of ["presentation-plan.json", "theme.json"]) {
+  try {
+    await fs.access(path.join(projectDir, file));
+  } catch { continue; }
+  throw new Error(`Project already exists: ${projectDir}. Edit its plan or use a new directory.`);
+}
+if (args["layout-engine"] && !["catalog-v1", "modules"].includes(args["layout-engine"])) throw new Error(`Unknown layout engine: ${args["layout-engine"]}`);
+const catalogMode = args["layout-engine"] !== "modules";
 const language = String(args.language || "auto").toLowerCase();
 const style = String(args.style || "soft").toLowerCase();
-const paletteName = String(args.palette || "analysis").toLowerCase();
+const paletteName = String(args.palette || "auto").toLowerCase();
 const title = String(args.title || "Presentation title");
 const fonts = resolvePlatformFonts(language);
 const colors = presentationPalette(paletteName);
@@ -47,7 +57,7 @@ const theme = {
 };
 
 const plan = {
-  schemaVersion: "2.0",
+  schemaVersion: catalogMode ? "3.0" : "2.0",
   title,
   language,
   audience: "",
@@ -87,6 +97,27 @@ const plan = {
     },
   ],
 };
+
+if (catalogMode) {
+  plan.layoutEngine = "catalog-v1";
+  plan.designFamily = recommendDesignFamily({ ...plan, designFamily: args["design-family"] });
+  if (!DESIGN_FAMILIES[plan.designFamily]) throw new Error(`Unknown design family: ${plan.designFamily}`);
+  if (paletteName === "auto") {
+    // Keep the visible scaffold theme consistent with the actual catalog.
+    // A legacy analysis palette here previously prompted authors to override
+    // the selected technology family with unrelated yellow/orange colors.
+    const family = DESIGN_FAMILIES[plan.designFamily];
+    theme.colors = { primary: family.primary, secondary: family.muted, accent: family.accent,
+      light: family.light, bg: family.background, text: family.primary };
+  }
+  if (paletteName !== "auto") theme.layoutColors = { primary: colors.primary, accent: colors.accent, light: colors.light, background: colors.bg };
+  plan.slides[0].title = title;
+  plan.slides[0].layoutId = "auto";
+  plan.slides[0].content = { subtitle: "", body: "", sourceNote: "" };
+  plan.slides[1].title = "";
+  plan.slides[1].layoutId = "auto";
+  plan.slides[1].content = { body: "", items: [{ label: "", body: "" }], sourceNote: "" };
+}
 
 const coverSource = `export const slideConfig = {
   index: 1,
@@ -208,14 +239,23 @@ const readme = `# Presentation Studio project
 await fs.mkdir(path.join(projectDir, "slides", "imgs"), { recursive: true });
 await fs.mkdir(path.join(projectDir, "output"), { recursive: true });
 await fs.mkdir(path.join(projectDir, "preview"), { recursive: true });
+if (args.source) {
+  const extracted = await extractSourceAssets({ source: args.source, projectDir });
+  plan.sourceAssetManifests = [path.basename(extracted.manifestPath)];
+  console.log(`[presentation-studio] ${extracted.assets.length} source figure(s): ${extracted.manifestPath}. Inspect them before authoring; extracted text alone omits this visual evidence.`);
+}
 await fs.writeFile(path.join(projectDir, "theme.json"), JSON.stringify(theme, null, 2));
 await fs.writeFile(
   path.join(projectDir, "presentation-plan.json"),
   JSON.stringify(plan, null, 2),
 );
-await fs.writeFile(path.join(projectDir, "slides", "slide-01.mjs"), coverSource);
-await fs.writeFile(path.join(projectDir, "slides", "slide-02.mjs"), contentSource);
-await fs.writeFile(path.join(projectDir, "README.md"), readme);
+if (!catalogMode) {
+  await fs.writeFile(path.join(projectDir, "slides", "slide-01.mjs"), coverSource);
+  await fs.writeFile(path.join(projectDir, "slides", "slide-02.mjs"), contentSource);
+}
+await fs.writeFile(path.join(projectDir, "README.md"), catalogMode
+  ? `# Presentation Studio\n\nEdit presentation-plan.json, including each slide's title and typed content. Read the bundled references/layout-catalog.md. Keep assets in slides/imgs. Build with the bundled build_and_qa.mjs. Do not add slide modules to a catalog project. Capacity checks preserve all content and fail before export when a slide cannot fit. Inspect every rendered slide before delivery.\n`
+  : readme);
 
 console.log(`[presentation-studio] project created: ${projectDir}`);
 console.log(`[presentation-studio] platform fonts: ${fonts.heading} / ${fonts.body}`);

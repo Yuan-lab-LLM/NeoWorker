@@ -110,6 +110,7 @@ describe("CustomSkillLoader", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   describe("getSkillsDirectory", () => {
@@ -466,6 +467,33 @@ describe("CustomSkillLoader", () => {
   });
 
   describe("reloadSkills", () => {
+    it("settles every caller arriving before a shared reload starts", async () => {
+      vi.useFakeTimers();
+      const reload = vi.spyOn(loader as any, "doReloadSkills");
+      const finished: number[] = [];
+      const requests = Array.from({ length: 4 }, (_, index) =>
+        loader.reloadSkills().then(() => finished.push(index)),
+      );
+      await vi.runAllTimersAsync();
+      expect(finished).toEqual([0, 1, 2, 3]);
+      await Promise.all(requests);
+      expect(reload).toHaveBeenCalledTimes(1);
+    });
+
+    it("rejects every waiter on failure and allows a later retry", async () => {
+      vi.useFakeTimers();
+      vi.spyOn(loader as any, "doReloadSkills").mockRejectedValueOnce(new Error("catalog unavailable"));
+      const settled = Promise.allSettled([loader.reloadSkills(), loader.reloadSkills()]);
+      await vi.runAllTimersAsync();
+      expect(await settled).toEqual([
+        { status: "rejected", reason: new Error("catalog unavailable") },
+        { status: "rejected", reason: new Error("catalog unavailable") },
+      ]);
+      const retry = loader.reloadSkills();
+      await vi.runAllTimersAsync();
+      expect(await retry).toEqual([]);
+    });
+
     it("should clear existing skills before loading", async () => {
       const skill1 = createTestSkill({ id: "skill-1" });
       mockFiles.set("skill-1.json", JSON.stringify(skill1));
@@ -528,6 +556,20 @@ describe("CustomSkillLoader", () => {
   });
 
   describe("initialize", () => {
+    it("starts all four team members when an initialized catalog changes workspace", async () => {
+      vi.useFakeTimers();
+      const initial = loader.initializeForWorkspace("/previous-task");
+      await vi.runAllTimersAsync();
+      await initial;
+      const started: number[] = [];
+      const members = Array.from({ length: 4 }, (_, index) =>
+        loader.initializeForWorkspace("/new-team-task").then(() => started.push(index)),
+      );
+      await vi.runAllTimersAsync();
+      expect(started).toEqual([0, 1, 2, 3]);
+      await Promise.all(members);
+    });
+
     it("should only initialize once", async () => {
       const skill = createTestSkill({ id: "init-skill" });
       mockFiles.set("init-skill.json", JSON.stringify(skill));

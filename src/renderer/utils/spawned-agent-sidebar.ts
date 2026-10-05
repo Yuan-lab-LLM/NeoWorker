@@ -5,9 +5,8 @@ export function resolveSpawnedAgentSidebarTask(
   selectedTaskId: string | null,
 ): Task | null {
   if (childTasks.length === 0) return null;
-  return (
-    childTasks.find((task) => task.id === selectedTaskId) ??
-    childTasks[0] ??
-    null
-  );
+  // A stale selection must never silently show another expert's conversation.
+  return selectedTaskId
+    ? (childTasks.find((task) => task.id === selectedTaskId) ?? null)
+    : childTasks[0];
 }

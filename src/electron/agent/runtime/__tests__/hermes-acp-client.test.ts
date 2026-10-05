@@ -329,6 +329,22 @@ describe('Hermes runtime session', () => {
     expect(await pending).toMatchObject({assistantText:'',stopReason:'cancelled'});
     expect(approvals).toBe(0);
   });
+  it('force-stops a real subprocess stuck in initialization without waiting for its request timeout', async () => {
+    let initializing!: () => void;
+    const ready = new Promise<void>(resolve => { initializing = resolve; });
+    const r = runtime({ timeoutMs: 60_000,
+      env: { NEOWORKER_TEST_HANG_INITIALIZE: '1' },
+      onTransportEvent: event => {
+        if (event.phase === 'request_started' && event.method === 'initialize') initializing();
+      },
+    });
+    const outcome = r.prompt('permission').catch(error => error);
+    await ready;
+    const started = Date.now();
+    await r.cancel();
+    expect(Date.now() - started).toBeLessThan(5000);
+    expect(await outcome).toMatchObject({ code: 'STOPPED' });
+  }, 8000);
   it('persists its checkpoint before prompting and assembles only its own deltas', async () => {
     let saved: HermesSessionCheckpoint | undefined;
     const r=runtime({onCheckpoint:async (value)=>{saved=value;}});

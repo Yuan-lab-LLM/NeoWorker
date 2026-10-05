@@ -19,8 +19,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAgentContext } from "../hooks/useAgentContext";
-import { translate, useLanguage } from "../i18n";
+import { translate, useLanguage, getCurrentLanguage } from "../i18n";
 import { createRendererLogger } from "../utils/logger";
+import { AutomationConfirmDialog, type AutomationConfirmationKind } from "./AutomationConfirmDialog";
 import {
   NeoWorkerSelectMenu,
   type NeoWorkerSelectOption,
@@ -140,6 +141,7 @@ interface CronJob {
   updatedAtMs: number;
   schedule: CronSchedule;
   workspaceId: string;
+  workspaceMode?: "automatic" | "selected";
   taskPrompt: string;
   taskTitle?: string;
   runMode?: CronJobRunMode;
@@ -175,7 +177,7 @@ interface Workspace {
 }
 
 // Schedule presets
-const SCHEDULE_PRESETS = [
+const getSchedulePresets = () => [
   {
     label: translate(
       "generated.components.scheduledtaskssettings.177.0",
@@ -234,7 +236,7 @@ const SCHEDULE_PRESETS = [
   },
 ];
 
-const CRON_PRESETS = [
+const getCronPresets = () => [
   {
     label: translate(
       "generated.components.scheduledtaskssettings.211.8",
@@ -435,7 +437,7 @@ const CRON_PRESETS = [
   },
 ];
 
-const SIMPLE_SCHEDULE_CHOICES = [
+const getSimpleScheduleChoices = () => [
   {
     value: "cron:0 9 * * *",
     label: translate(
@@ -526,8 +528,8 @@ const SIMPLE_SCHEDULE_CHOICES = [
   },
 ] as const;
 
-const SIMPLE_SCHEDULE_OPTIONS = [
-  ...SIMPLE_SCHEDULE_CHOICES,
+const getSimpleScheduleOptions = () => [
+  ...getSimpleScheduleChoices(),
   {
     value: "custom",
     label: translate(
@@ -547,7 +549,7 @@ function getSimpleScheduleValue(schedule: CronSchedule): string | null {
     schedule.kind === "cron"
       ? `cron:${schedule.expr}`
       : `every:${schedule.everyMs}`;
-  return SIMPLE_SCHEDULE_CHOICES.some((choice) => choice.value === value)
+  return getSimpleScheduleChoices().some((choice) => choice.value === value)
     ? value
     : null;
 }
@@ -846,7 +848,7 @@ function describeSchedule(schedule: CronSchedule): string {
     case "at": {
       const date = new Date(schedule.atMs);
       return translate("scheduled.schedule.onceAt", "Once at {time}", {
-        time: date.toLocaleString(),
+        time: date.toLocaleString(getCurrentLanguage()),
       });
     }
     case "every": {
@@ -883,7 +885,7 @@ function describeSchedule(schedule: CronSchedule): string {
     }
     case "cron": {
       // Try to find a matching preset for friendly name
-      const preset = CRON_PRESETS.find((p) => p.value === schedule.expr);
+      const preset = getCronPresets().find((p) => p.value === schedule.expr);
       return preset
         ? translate(`scheduled.cronPreset.${preset.value}.label`, preset.label)
         : schedule.expr;
@@ -930,11 +932,12 @@ function formatRelativeTime(ms: number): string {
 }
 
 function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${Math.round(ms / 1000)}s`;
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.round((ms % 60000) / 1000);
-  return `${minutes}m ${seconds}s`;
+  if (ms < 1000) return translate("scheduled.duration.milliseconds", undefined, { count: ms });
+  if (ms < 60000) return translate("scheduled.duration.seconds", undefined, { count: Math.round(ms / 1000) });
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return translate("scheduled.duration.minutesSeconds", undefined, { minutes, seconds });
 }
 
 function formatStatusLabel(status?: CronJobState["lastStatus"]): string {
@@ -1349,6 +1352,7 @@ export function ScheduledTasksSettings({
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<{ kind: AutomationConfirmationKind; job: CronJob } | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingJob, setEditingJob] = useState<CronJob | null>(null);
   const [selectedTemplate, setSelectedTemplate] =
@@ -1488,11 +1492,11 @@ export function ScheduledTasksSettings({
     }
   };
 
-  const handleDeleteJob = async (job: CronJob, e: React.MouseEvent) => {
+  const handleDeleteJob = (job: CronJob, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Delete "${job.name}"?\n\nThis action cannot be undone.`))
-      return;
-
+    setConfirmation({ kind: "delete", job });
+  };
+  const deleteJob = async (job: CronJob) => {
     try {
       const result = await window.electronAPI.removeCronJob(job.id);
       if (!result.ok) {
@@ -1527,14 +1531,10 @@ export function ScheduledTasksSettings({
     }
   };
 
-  const handleClearRunHistory = async (job: CronJob) => {
-    if (
-      !confirm(
-        `Clear run history for "${job.name}"?\n\nThis only clears the scheduled task history, not task sessions.`,
-      )
-    ) {
-      return;
-    }
+  const handleClearRunHistory = (job: CronJob) => {
+    setConfirmation({ kind: "clearHistory", job });
+  };
+  const clearRunHistory = async (job: CronJob) => {
     try {
       const ok = await window.electronAPI.clearCronRunHistory(job.id);
       if (!ok) {
@@ -2376,7 +2376,7 @@ export function ScheduledTasksSettings({
                         {translate("common.workspace", "Workspace")}
                       </span>
                       <span style={styles.detailValue}>
-                        {workspace?.name || job.workspaceId}
+                        {job.workspaceMode === "automatic" || !job.workspaceId ? translate("scheduled.workspace.automatic", "Automatic independent workspace") : workspace?.name || job.workspaceId}
                       </span>
 
                       <span style={styles.detailLabel}>
@@ -2418,7 +2418,7 @@ export function ScheduledTasksSettings({
                         {translate("common.created", "Created")}
                       </span>
                       <span style={styles.detailValue}>
-                        {new Date(job.createdAtMs).toLocaleString()}
+                        {new Date(job.createdAtMs).toLocaleString(getCurrentLanguage())}
                       </span>
 
                       {job.state.totalRuns !== undefined &&
@@ -2442,7 +2442,7 @@ export function ScheduledTasksSettings({
                             {translate("scheduled.lastRun", "Last Run")}
                           </span>
                           <span style={styles.detailValue}>
-                            {new Date(job.state.lastRunAtMs).toLocaleString()}
+                            {new Date(job.state.lastRunAtMs).toLocaleString(getCurrentLanguage())}
                             {job.state.lastDurationMs && (
                               <span
                                 style={{
@@ -2649,6 +2649,17 @@ export function ScheduledTasksSettings({
       )}
 
       {/* Create/Edit Modal */}
+      {confirmation && (
+        <AutomationConfirmDialog
+          kind={confirmation.kind}
+          name={confirmation.job.name}
+          onCancel={() => setConfirmation(null)}
+          onConfirm={() => {
+            setConfirmation(null);
+            void (confirmation.kind === "delete" ? deleteJob(confirmation.job) : clearRunHistory(confirmation.job));
+          }}
+        />
+      )}
       {showCreateModal && (
         <JobModal
           job={editingJob}
@@ -2695,7 +2706,7 @@ function JobModal({
     job?.description || template?.description || "",
   );
   const [workspaceId, setWorkspaceId] = useState(
-    job?.workspaceId || workspaces[0]?.id || "",
+    job?.workspaceMode === "automatic" ? "" : job?.workspaceId || "",
   );
   const [taskPrompt, setTaskPrompt] = useState(
     job?.taskPrompt || template?.taskPrompt || "",
@@ -2813,7 +2824,7 @@ function JobModal({
     parseFriendlyCron(initialCronExpression) || DEFAULT_FRIENDLY_CRON_RULE;
   const [cronExpr, setCronExpr] = useState(initialCronExpression);
   const [customCron, setCustomCron] = useState(
-    !CRON_PRESETS.some(
+    !getCronPresets().some(
       (preset) =>
         preset.value === initialCronExpression,
     ),
@@ -2848,15 +2859,12 @@ function JobModal({
   const [error, setError] = useState<string | null>(null);
 
   const intervalScheduleOptions: NeoWorkerSelectOption[] =
-    SCHEDULE_PRESETS.map((preset) => ({
+    getSchedulePresets().map((preset) => ({
       value: String(preset.schedule.everyMs),
-      label: translate(
-        `scheduled.schedulePreset.${preset.label}`,
-        preset.label,
-      ),
+      label: preset.label,
     }));
   const cronScheduleOptions: NeoWorkerSelectOption[] = [
-    ...CRON_PRESETS.map((preset) => ({
+    ...getCronPresets().map((preset) => ({
       value: preset.value,
       label: translate(
         `scheduled.cronPreset.${preset.value}.label`,
@@ -2879,13 +2887,18 @@ function JobModal({
       ),
     },
   ];
-  const workspaceOptions: NeoWorkerSelectOption[] = workspaces.map(
-    (workspace) => ({
+  const workspaceOptions: NeoWorkerSelectOption[] = [
+    {
+      value: "",
+      label: translate("scheduled.workspace.automatic", "Automatic independent workspace"),
+      description: translate("scheduled.workspace.automaticDescription", "No folder selection needed. Files are saved separately for this automation."),
+    },
+    ...workspaces.map((workspace) => ({
       value: workspace.id,
       label: workspace.name,
       description: workspace.path,
-    }),
-  );
+    })),
+  ];
   const deliveryChannelOptions: NeoWorkerSelectOption[] = [
     {
       value: "",
@@ -2974,15 +2987,6 @@ function JobModal({
   };
 
   const handleSave = async () => {
-    if (!workspaceId) {
-      setError(
-        translate(
-          "generated.components.scheduledtaskssettings.2466.74",
-          "Please select a workspace",
-        ),
-      );
-      return;
-    }
     if (!taskPrompt.trim()) {
       setError(
         translate(
@@ -3063,7 +3067,8 @@ function JobModal({
         const result = await window.electronAPI.updateCronJob(job.id, {
           name: resolvedName,
           description: description.trim() || undefined,
-          workspaceId,
+          workspaceId: !workspaceId && job?.workspaceMode === "automatic" ? job.workspaceId : workspaceId,
+          workspaceMode: workspaceId ? "selected" : "automatic",
           taskPrompt: taskPrompt.trim(),
           taskTitle: taskTitle.trim() || undefined,
           enabled,
@@ -3082,6 +3087,7 @@ function JobModal({
           name: resolvedName,
           description: description.trim() || undefined,
           workspaceId,
+          workspaceMode: workspaceId ? "selected" : "automatic",
           taskPrompt: taskPrompt.trim(),
           taskTitle: taskTitle.trim() || undefined,
           enabled,
@@ -3341,7 +3347,7 @@ function JobModal({
               icon={Icons.clock}
               minMenuWidth={340}
               onValueChange={handleSimpleScheduleChange}
-              options={SIMPLE_SCHEDULE_OPTIONS}
+              options={getSimpleScheduleOptions()}
               value={simpleSchedule}
             />
 
@@ -3700,17 +3706,16 @@ function JobModal({
                 <div style={modalStyles.field}>
                   <label style={modalStyles.label}>
                     {translate(
-                      "generated.components.scheduledtaskssettings.2907.99",
-                      "workspace",
+                      "scheduled.workspace.optional",
+                      "Workspace (optional)",
                     )}
                   </label>
                   <NeoWorkerSelectMenu
                     ariaLabel={translate(
-                      "generated.components.scheduledtaskssettings.2907.99",
-                      "workspace",
+                      "scheduled.workspace.optional",
+                      "Workspace (optional)",
                     )}
                     className="automation-job-schedule-select automation-job-workspace-select"
-                    disabled={workspaces.length === 0}
                     icon={<FolderSync size={16} strokeWidth={1.8} />}
                     minMenuWidth={360}
                     value={workspaceId}
@@ -3966,7 +3971,7 @@ function JobModal({
                                   )}{" "}
                                   {new Date(
                                     c.lastTimestamp,
-                                  ).toLocaleDateString()}
+                                  ).toLocaleDateString(language)}
                                   ）
                                 </option>
                               ))}

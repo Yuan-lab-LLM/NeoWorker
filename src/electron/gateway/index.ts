@@ -2115,6 +2115,10 @@ export class ChannelGateway {
 
   // Messaging
 
+  detachTaskForDesktop(taskId: string): void {
+    this.router.detachTaskForDesktop(taskId);
+  }
+
   /**
    * Send a message to a channel chat
    */

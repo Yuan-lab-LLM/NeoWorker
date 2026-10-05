@@ -1,6 +1,7 @@
+import { isNewsContentAllowed, NEWS_CONTENT_POLICY_VERSION } from "../../shared/news-content-policy";
 import type { NewsSummaryKind } from "../../shared/news-summary";
 import { isHfHubSource, hfHubUrl } from "../../shared/news-hub";
-import { newsSourceEnabled } from "../../shared/news-preferences";
+import { getNewsPreferences, NEWS_CATEGORIES, newsSourceEnabled, type NewsCategoryId } from "../../shared/news-preferences";
 import { NEWS_PUBLISHERS, isNewsPublisher, publisherArticleUrl } from "../../shared/news-sources";
 import { PaperNewsRequestError, paperNewsHttpError } from "./request";
 import * as fs from "node:fs";
@@ -28,21 +29,37 @@ const emptySources = () =>
   >;
 const MAX_BYTES = 3 * 1024 * 1024;
 
+function abortable<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    pending.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
+    if (signal.aborted) abort();
+  });
+}
+
 /** Read streams with a bound as Content-Length is not guaranteed or trusted. */
 export async function readPaperNewsResponse(
   response: Response,
   maxBytes = MAX_BYTES,
+  signal?: AbortSignal,
 ): Promise<string> {
   if (!response.body) throw new Error("invalidResponse");
   const reader = response.body.getReader();
+  const abort = () => { void reader.cancel(signal?.reason).catch(() => {}); };
+  signal?.addEventListener("abort", abort, { once: true });
   const charset =
     response.headers.get("content-type")?.match(/charset=["']?([\w-]+)/i)?.[1] || "utf-8";
-  const decoder = new TextDecoder(charset);
   let bytes = 0,
     result = "";
   try {
+    const decoder = new TextDecoder(charset);
+    signal?.throwIfAborted();
+    if (Number(response.headers.get("content-length")) > maxBytes)
+      throw new Error("invalidResponse");
     while (true) {
       const { done, value } = await reader.read();
+      signal?.throwIfAborted();
       if (done) break;
       bytes += value.byteLength;
       if (bytes > maxBytes) throw new Error("invalidResponse");
@@ -50,7 +67,8 @@ export async function readPaperNewsResponse(
     }
     return result + decoder.decode();
   } finally {
-    await reader.cancel().catch(() => {});
+    signal?.removeEventListener("abort", abort);
+    void reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }
@@ -76,6 +94,7 @@ function validCachedItem(item: unknown): item is PaperNewsItem {
     )
   )
     return false;
+  if (!isNewsContentAllowed(i)) return false;
   if (isHfHubSource(i.source)) {
     const id = i.id.slice(i.source.length + 1);
     return (
@@ -111,6 +130,7 @@ export class PaperNewsService {
     refreshing: false,
   };
   private inflight?: Promise<PaperNewsSnapshot>;
+  private excludedIds = new Set<string>();
   constructor(
     private readonly file: string,
     private readonly fetcher: Fetcher,
@@ -122,12 +142,13 @@ export class PaperNewsService {
       if (fs.statSync(file).size > 12 * 1024 * 1024) return;
       const cached = JSON.parse(fs.readFileSync(file, "utf8"));
       if (![1, 2, 3, 4].includes(cached.version)) return;
+      this.excludedIds = new Set(Array.isArray(cached.excludedIds) ? cached.excludedIds.filter((id: unknown) => typeof id === "string" && id.length <= 240).slice(-5000) : []);
       this.state.config = normalizePaperNewsConfig(cached.config);
       this.state.items = Array.isArray(cached.items)
-        ? cached.items.filter(validCachedItem).slice(0, PAPER_NEWS_SOURCES.length * 100)
+        ? cached.items.filter(validCachedItem).filter((item: PaperNewsItem) => !this.excludedIds.has(item.id)).slice(0, PAPER_NEWS_SOURCES.length * 100)
         : [];
       this.state.saved = Array.isArray(cached.saved)
-        ? cached.saved.filter(validCachedItem).slice(0, 200)
+        ? cached.saved.filter(validCachedItem).filter((item: PaperNewsItem) => !this.excludedIds.has(item.id)).slice(0, 200)
         : [];
       for (const source of PAPER_NEWS_SOURCES) {
         const s = cached.sources?.[source];
@@ -146,6 +167,10 @@ export class PaperNewsService {
         )
           this.state.sources[source].error = s.error;
       }
+      if (cached.contentPolicyVersion !== NEWS_CONTENT_POLICY_VERSION ||
+          this.state.items.length !== cached.items?.length || this.state.saved.length !== cached.saved?.length) {
+        this.persist();
+      }
     } catch {
       /* A missing or damaged cache must not prevent opening the app. */
     }
@@ -161,7 +186,7 @@ export class PaperNewsService {
   private persist(): void {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const temporary = `${this.file}.tmp`;
-    fs.writeFileSync(temporary, JSON.stringify({ ...this.state, version: 4, refreshing: false }), {
+    fs.writeFileSync(temporary, JSON.stringify({ ...this.state, version: 4, excludedIds: [...this.excludedIds].slice(-5000), contentPolicyVersion: NEWS_CONTENT_POLICY_VERSION, refreshing: false }), {
       mode: 0o600,
     });
     fs.renameSync(temporary, this.file);
@@ -200,23 +225,49 @@ export class PaperNewsService {
     }
     return this.snapshot();
   }
+  /** Navigation choices are local preferences, independent of network refresh. */
+  setFollowedCategories(input: unknown): PaperNewsSnapshot {
+    if (!Array.isArray(input) || input.length > 4 ||
+        input.some(id => !NEWS_CATEGORIES.includes(id)) || new Set(input).size !== input.length)
+      throw new Error("Invalid followed news categories");
+    const preferences = getNewsPreferences(this.state.config);
+    const previous = this.state.config;
+    this.state.config = {
+      ...this.state.config,
+      preferences: { ...preferences, followedCategories: [...input] as NewsCategoryId[] },
+    };
+    try { this.persist(); } catch (error) {
+      this.state.config = previous;
+      throw error;
+    }
+    return this.snapshot();
+  }
   findItem(id: unknown): PaperNewsItem | undefined {
     if (typeof id !== "string" || id.length > 240) return undefined;
     const item = [...this.state.items, ...this.state.saved].find((item) => item.id === id);
-    return item ? structuredClone(item) : undefined;
+    return item && !this.excludedIds.has(item.id) && isNewsContentAllowed(item) ? structuredClone(item) : undefined;
   }
   applySummary(original: PaperNewsItem, result: { summary: string; kind: NewsSummaryKind }): void {
     const merge = (item: PaperNewsItem) => item.id === original.id && item.url === original.url &&
       item.title === original.title && !item.summary.trim()
       ? { ...item, summary: result.summary, summaryKind: result.kind } : item;
-    this.state.items = this.state.items.map(merge);
-    this.state.saved = this.state.saved.map(merge);
+    for (const item of [...this.state.items, ...this.state.saved].map(merge)) {
+      if (!isNewsContentAllowed(item)) this.excludedIds.add(item.id);
+    }
+    this.state.items = this.state.items.map(merge).filter(isNewsContentAllowed);
+    this.state.saved = this.state.saved.map(merge).filter(isNewsContentAllowed);
+    this.persist();
+  }
+  excludeItem(id: string): void {
+    this.excludedIds.add(id);
+    this.state.items = this.state.items.filter(item => item.id !== id);
+    this.state.saved = this.state.saved.filter(item => item.id !== id);
     this.persist();
   }
   setSaved(id: unknown, saved: unknown): PaperNewsSnapshot {
     if (typeof id !== "string" || typeof saved !== "boolean") throw new Error("Invalid bookmark");
     const item = [...this.state.items, ...this.state.saved].find((i) => i.id === id);
-    if (!item) throw new Error("Item unavailable");
+    if (!item || !isNewsContentAllowed(item)) throw new Error("Item unavailable");
     if (saved && !this.state.saved.some((i) => i.id === id) && this.state.saved.length >= 200)
       throw new Error("Bookmark limit reached");
     this.state.saved = this.state.saved.filter((i) => i.id !== id);
@@ -247,14 +298,17 @@ export class PaperNewsService {
     );
     return this.inflight;
   }
-  private async requestSource(source: PaperNewsSource): Promise<PaperNewsItem[]> {
+  private async requestSource(source: PaperNewsSource, refreshSignal: AbortSignal): Promise<PaperNewsItem[]> {
     for (let attempt = 0; ; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(new Error("News source timed out")), 25_000);
+      const signal = AbortSignal.any([refreshSignal, controller.signal]);
       try {
+        signal.throwIfAborted();
         let url = paperNewsEndpoint(source, this.state.config, this.now());
-        const signal = AbortSignal.timeout(25_000);
         let response: Response;
         for (let hop = 0; ; hop++) {
-          response = await this.fetcher(url, {
+          const pending = this.fetcher(url, {
             method: "GET",
             credentials: "omit",
             redirect: "manual",
@@ -268,9 +322,15 @@ export class PaperNewsService {
                   : "application/json",
             },
           });
+          // A transport which ignores abort must not keep refresh locked. If it
+          // eventually returns, discard its body instead of applying stale data.
+          void pending.then(late => {
+            if (signal.aborted) void late.body?.cancel().catch(() => {});
+          }, () => {});
+          response = await abortable(pending, signal);
           if (![301, 302, 303, 307, 308].includes(response.status)) break;
           const location = response.headers.get("location");
-          await response.body?.cancel().catch(() => {});
+          void response.body?.cancel().catch(() => {});
           const next =
             location && isNewsPublisher(source)
               ? publisherArticleUrl(source, new URL(location, url).href)
@@ -280,7 +340,7 @@ export class PaperNewsService {
         }
         if (!response.ok) {
           const error = paperNewsHttpError(response, source, this.now());
-          await response.body?.cancel().catch(() => {});
+          void response.body?.cancel().catch(() => {});
           throw error;
         }
         const raw = await readPaperNewsResponse(
@@ -288,6 +348,7 @@ export class PaperNewsService {
           isNewsPublisher(source)
             ? (NEWS_PUBLISHERS[source].format === "rss" ? 16 : 4) * 1024 * 1024
             : MAX_BYTES,
+          signal,
         );
         try {
           return rankPaperNews(parsePaperNews(source, raw), this.state.config, this.now());
@@ -306,14 +367,16 @@ export class PaperNewsService {
               message + String((error as { cause?: { code?: string } })?.cause?.code || ""),
             );
         // At most one same-route retry for a transient failure. Never retry a denial or quota response here.
-        if (attempt === 0 && retryable) {
-          await this.sleep(3_100);
+        if (attempt === 0 && retryable && !signal.aborted) {
+          await abortable(this.sleep(3_100), signal);
           continue;
         }
         if (typed) throw error;
         throw new PaperNewsRequestError(
           message === "invalidResponse" ? "invalidResponse" : "network",
         );
+      } finally {
+        clearTimeout(timeout);
       }
     }
   }
@@ -342,47 +405,62 @@ export class PaperNewsService {
     // Persist all throttles before starting requests. A disk failure must not
     // leave requests running after the shared refresh promise has rejected.
     if (due.length) this.persist();
+    const controller = new AbortController();
+    // Give every enabled source a turn, including late categories behind slow sources.
+    // Each source remains bounded to two 25-second attempts and a short retry delay.
+    const budget = Math.max(60_000, Math.ceil(due.length / 4) * 55_000);
+    const timeout = setTimeout(() => controller.abort(new Error("News refresh timed out")), budget);
     const queue = [...due];
-    await Promise.all(
-      Array.from({ length: Math.min(4, due.length) }, async () => {
-        for (let source = queue.shift(); source; source = queue.shift()) {
-          const previous = previousStates[source];
-          try {
-            const fetched = await this.requestSource(source);
-            const previousItems = new Map([...this.state.saved, ...this.state.items].map((item) => [item.id, item]));
-            const items = fetched.map((item) => {
-              const previousItem = previousItems.get(item.id);
-              return !item.summary.trim() && previousItem?.summaryKind && previousItem.title === item.title && previousItem.url === item.url
-                ? { ...item, summary: previousItem.summary, summaryKind: previousItem.summaryKind } : item;
-            });
-            this.state.items = [...this.state.items.filter((i) => i.source !== source), ...items];
-            this.state.sources[source] = {
-              attemptedAt,
-              updatedAt: new Date(this.now()).toISOString(),
-              nextRetryAt: new Date(this.now() + 60_000).toISOString(),
-            };
-          } catch (error) {
-            const failure =
-              error instanceof PaperNewsRequestError ? error : new PaperNewsRequestError("network");
-            const delay =
-              failure.code === "rateLimit"
-                ? 5 * 60_000
-                : failure.code === "accessDenied" || failure.code === "invalidResponse"
-                  ? 30 * 60_000
-                  : 60_000;
-            this.state.sources[source] = {
-              ...previous,
-              attemptedAt,
-              error: failure.code,
-              httpStatus: failure.httpStatus,
-              nextRetryAt: new Date(
-                Math.max(this.now() + delay, failure.retryAt || 0),
-              ).toISOString(),
-            };
+    try {
+      await Promise.all(
+        Array.from({ length: Math.min(4, due.length) }, async () => {
+          for (let source = queue.shift(); source; source = queue.shift()) {
+            const previous = previousStates[source];
+            if (controller.signal.aborted) {
+              // These sources never started. Keep them eligible when the user
+              // opens their category instead of assigning a false failure/cooldown.
+              this.state.sources[source] = previous;
+              continue;
+            }
+            try {
+              const fetched = await this.requestSource(source, controller.signal);
+              const previousItems = new Map([...this.state.saved, ...this.state.items].map((item) => [item.id, item]));
+              const items = fetched.map((item) => {
+                const previousItem = previousItems.get(item.id);
+                return !item.summary.trim() && previousItem?.summaryKind && previousItem.title === item.title && previousItem.url === item.url
+                  ? { ...item, summary: previousItem.summary, summaryKind: previousItem.summaryKind } : item;
+              }).filter(item => !this.excludedIds.has(item.id) && isNewsContentAllowed(item));
+              this.state.items = [...this.state.items.filter((i) => i.source !== source), ...items];
+              this.state.sources[source] = {
+                attemptedAt,
+                updatedAt: new Date(this.now()).toISOString(),
+                nextRetryAt: new Date(this.now() + 60_000).toISOString(),
+              };
+            } catch (error) {
+              const failure =
+                error instanceof PaperNewsRequestError ? error : new PaperNewsRequestError("network");
+              const delay =
+                failure.code === "rateLimit"
+                  ? 5 * 60_000
+                  : failure.code === "accessDenied" || failure.code === "invalidResponse"
+                    ? 30 * 60_000
+                    : 60_000;
+              this.state.sources[source] = {
+                ...previous,
+                attemptedAt,
+                error: failure.code,
+                httpStatus: failure.httpStatus,
+                nextRetryAt: new Date(
+                  Math.max(this.now() + delay, failure.retryAt || 0),
+                ).toISOString(),
+              };
+            }
           }
-        }
-      }),
-    );
+        }),
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
     if (due.length) this.persist();
     return this.snapshot();
   }

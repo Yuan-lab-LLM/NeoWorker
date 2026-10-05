@@ -107,6 +107,8 @@ export interface ReadingSelectionEvent {
   y: number;
   pageURL: string;
   frameURL: string;
+  webContentsId?: number;
+  coordinateSpace?: "guest" | "host";
 }
 
 export interface ReadingSelectionRequest {

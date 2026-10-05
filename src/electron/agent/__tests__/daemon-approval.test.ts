@@ -231,6 +231,45 @@ describe("AgentDaemon.requestApproval auto-approve controls", () => {
     });
   });
 
+  it("auto-resolves quote reads on successive scheduled runs without a session grant", async () => {
+    const workspace = {
+      id: "quote-workspace", name: "Scheduled quote", path: "/tmp/scheduled-quote",
+      permissions: { read: true, write: true, delete: false, network: true, shell: false },
+      createdAt: 0,
+    };
+    const daemon = Object.assign(Object.create(AgentDaemon.prototype), {
+      taskRepo: { findById: vi.fn((id) => ({
+        id, workspaceId: workspace.id, source: "cron", status: "executing",
+        agentConfig: { permissionMode: "dangerous_only", allowUserInput: false },
+      })) },
+      workspaceRepo: { findById: vi.fn(() => workspace) },
+      getExecutorForTask: vi.fn(() => null),
+      buildPermissionRules: vi.fn(() => []),
+      approvalRepo: {
+        create: vi.fn((approval) => ({ id: `approval-${approval.taskId}`, ...approval })),
+        update: vi.fn(),
+      },
+      logEvent: vi.fn(),
+      updateTask: vi.fn(),
+      pendingApprovals: new Map(),
+      sessionAutoApproveAll: false,
+    });
+    for (const taskId of ["scheduled-run-1", "scheduled-run-2", "scheduled-run-3"]) {
+      const result = await daemon.requestApproval(taskId, "network_access", "Approve tool call: http_request", {
+        tool: "http_request",
+        params: {
+          url: "https://hq.sinajs.cn/list=sz000977", method: "GET",
+          headers: { Referer: "https://finance.sina.com.cn/" },
+        },
+      });
+      expect(result).toBe(true);
+      expect(daemon.pendingApprovals.size).toBe(0);
+    }
+    expect(daemon.approvalRepo.create).toHaveBeenCalledTimes(3);
+    expect(daemon.approvalRepo.create.mock.calls.every(([approval]) => approval.status === "approved")).toBe(true);
+    expect(daemon.updateTask).not.toHaveBeenCalled();
+  });
+
   it("does not session auto-approve network reads denied by network policy", async () => {
     vi.useFakeTimers();
     vi.mocked(evaluateNetworkPolicy).mockReturnValueOnce({

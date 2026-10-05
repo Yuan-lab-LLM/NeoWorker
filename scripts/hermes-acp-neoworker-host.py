@@ -417,9 +417,11 @@ def main():
                 self._neoworker_runtime_error = {
                     "code": "HERMES_RUNTIME_ERROR",
                     "message": str(result.get("error") or result.get("final_response") or "Hermes runtime failed")[:4000],
-                    "retryable": result.get("retryable") is True,
                     "reason": str(result.get("failure_reason") or ""),
                 }
+                # Missing metadata means unknown, not a prohibition on retry.
+                if isinstance(result.get("retryable"), bool):
+                    self._neoworker_runtime_error["retryable"] = result["retryable"]
             return result
 
     run_agent.AIAgent = NeoWorkerAIAgent

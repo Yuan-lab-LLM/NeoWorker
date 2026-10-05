@@ -56,6 +56,14 @@ export const conversionCases: Array<[string, string[]]> = [
   ["Create an analysis of source.pptx as a Word document", [".docx"]],
   ["Create a PDF report comparing Word and Excel", [".pdf"]],
   ["生成PPT内容的Word报告", [".docx"]],
+  ["生成一份4页PPT。不要网上搜索、补造数据或制作更多页面。", [".pptx"]],
+  ["生成一份PPT，每个页面需要明确来源。", [".pptx"]],
+  ["生成PDF报告，每个页面使用统一页脚。", [".pdf"]],
+  ["生成PPT和HTML页面", [".pptx", ".html"]],
+  ["生成PPT和一个登录页面", [".pptx", ".html"]],
+  ["不要制作PPT和生成Word报告", []],
+  ["不要制作PPT，生成HTML页面", [".html"]],
+  ["生成一个登录页面", [".html"]],
 ];
 
 describe("output intent is independent of source formats", () => {

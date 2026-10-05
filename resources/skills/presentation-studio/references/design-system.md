@@ -1,5 +1,15 @@
 # Design System
 
+## Catalog projects
+
+For `catalog-v1`, the selected `designFamily` is the authoritative color system.
+Use `--palette auto` (or omit the flag) unless the user supplies a palette or asks
+for a particular direction. The scaffold's `theme.colors` mirrors that family.
+Do not copy the legacy `analysis` palette into `layoutColors` by default, and do
+not inspect implementation scripts to reconcile theme fields. The public schema
+in `layout-catalog.md` is sufficient. The palette library below is an optional
+reference for deliberate custom/module designs and requested branding.
+
 ## Color Palette Reference
 
 | # | Name | Colors | Style | Use Cases | Tips |

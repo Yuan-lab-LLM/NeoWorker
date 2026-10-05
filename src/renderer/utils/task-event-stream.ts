@@ -45,11 +45,10 @@ function asTaskStatus(value: unknown): Task["status"] | undefined {
 export function getTaskStatusUpdateFromEvent(
   event: TaskEvent,
 ): Task["status"] | undefined {
-  if (event.type === "task_status") {
+  const effectiveType = getEffectiveTaskEventType(event);
+  if (effectiveType === "task_status") {
     return asTaskStatus(event.payload?.status);
   }
-
-  const effectiveType = getEffectiveTaskEventType(event);
   if (effectiveType === "follow_up_failed") {
     return asTaskStatus(asObject(event.payload).parentTaskStatus);
   }

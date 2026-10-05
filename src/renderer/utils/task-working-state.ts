@@ -4,6 +4,16 @@ import { getEffectiveTaskEventType } from "./task-event-compat";
 
 const ACTIVE_WORK_SIGNAL_WINDOW_MS = 30_000;
 
+export function markTaskStopRequested(task: Task, now = Date.now()): Task {
+  const terminal = ["completed", "failed", "cancelled"].includes(task.status);
+  return {
+    ...task,
+    status: terminal ? task.status : "cancelled",
+    updatedAt: now,
+    completedAt: terminal ? task.completedAt : now,
+  };
+}
+
 const ACTIVE_WORK_EVENT_TYPES: string[] = [
   "executing",
   "task_resumed",
@@ -157,10 +167,12 @@ function isActiveWorkSignal(event: TaskEvent, effectiveType: string): boolean {
     (event.payload?.phase === "tool_execution" ||
       event.payload?.state === "active" ||
       event.payload?.heartbeat === true);
+  // A canonical envelope can also carry logs or a final answer. Only its
+  // semantic event may reactivate work after a terminal marker.
   const isTimelineActiveLifecycle =
-    event.type === "timeline_group_started" ||
-    event.type === "timeline_step_started" ||
-    event.type === "timeline_step_updated";
+    effectiveType === "timeline_group_started" ||
+    effectiveType === "timeline_step_started" ||
+    effectiveType === "timeline_step_updated";
   return (
     isTimelineActiveLifecycle ||
     ACTIVE_WORK_EVENT_TYPES.includes(effectiveType) ||

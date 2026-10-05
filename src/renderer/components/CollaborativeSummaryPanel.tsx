@@ -11,26 +11,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import { Loader2, ChevronDown, Check } from "lucide-react";
-import type {
-  Task,
-  AgentTeamRun,
-  AgentThought,
-  AgentTeamItem,
-} from "../../shared/types";
+import type { Task, AgentTeamRun, AgentThought, AgentTeamItem } from "../../shared/types";
 import type { TaskEvent } from "../../shared/types";
-import {
-  SYNTHESIS_TASK_TITLE,
-  isSynthesisChildTask,
-} from "../../shared/synthesis-agent-detection";
+import { SYNTHESIS_TASK_TITLE, isSynthesisChildTask } from "../../shared/synthesis-agent-detection";
 import { getEffectiveTaskEventType } from "../utils/task-event-compat";
-import {
-  normalizeMarkdownForCollab,
-  fixUnclosedBold,
-} from "../utils/markdown-inline-lists";
-import {
-  replaceEmojisInChildren,
-  stripLeadingEmoji,
-} from "../utils/emoji-replacer";
+import { normalizeMarkdownForCollab, fixUnclosedBold } from "../utils/markdown-inline-lists";
+import { replaceEmojisInChildren, stripLeadingEmoji } from "../utils/emoji-replacer";
 import { getEmojiIcon } from "../utils/emoji-icon-map";
 import { translate, useLanguage } from "../i18n";
 import {
@@ -38,6 +24,7 @@ import {
   getLocalizedSubagentDisplay,
 } from "../utils/localized-agent-roles";
 import { getManagedAgentPromptForDisplay } from "../utils/mission-control-copy";
+import { getAgentTaskStatus } from "../../shared/agent-task-status";
 import { sanitizeHermesText } from "../utils/runtime-privacy";
 
 function truncate(str: string, maxLen: number): string {
@@ -88,16 +75,10 @@ export function CollaborativeSummaryPanel({
   const t = translate;
   const [teamItems, setTeamItems] = useState<AgentTeamItem[]>([]);
   const [thoughts, setThoughts] = useState<AgentThought[]>([]);
-  const [phase, setPhase] = useState<string>(
-    collaborativeRun.phase || "dispatch",
-  );
-  const [spawnEvents, setSpawnEvents] = useState<
-    Array<{ item: AgentTeamItem; ts: number }>
-  >([]);
-  const [expanded, setExpanded] = useState(true);
-  const [agentRoles, setAgentRoles] = useState<Map<string, { icon?: string }>>(
-    new Map(),
-  );
+  const [phase, setPhase] = useState<string>(collaborativeRun.phase || "dispatch");
+  const [spawnEvents, setSpawnEvents] = useState<Array<{ item: AgentTeamItem; ts: number }>>([]);
+  const [expanded, setExpanded] = useState(false);
+  const [agentRoles, setAgentRoles] = useState<Map<string, { icon?: string }>>(new Map());
 
   useEffect(() => {
     window.electronAPI
@@ -150,8 +131,7 @@ export function CollaborativeSummaryPanel({
           event.runId === collaborativeRun.id
         ) {
           setSpawnEvents((prev) => {
-            const ts =
-              (event as { timestamp?: number }).timestamp ?? Date.now();
+            const ts = (event as { timestamp?: number }).timestamp ?? Date.now();
             if (prev.some((e) => e.item.id === event.item!.id)) return prev;
             return [...prev, { item: event.item!, ts }];
           });
@@ -182,15 +162,11 @@ export function CollaborativeSummaryPanel({
       taskToRoleId.set(item.sourceTaskId, item.ownerAgentRoleId);
   }
   const spawnItems = teamItems.map((item) => {
-    const childTask = item.sourceTaskId
-      ? childByTaskId.get(item.sourceTaskId)
-      : null;
+    const childTask = item.sourceTaskId ? childByTaskId.get(item.sourceTaskId) : null;
     return {
       id: item.id,
       title: item.title,
-      description: getManagedAgentPromptForDisplay(
-        item.description || childTask?.prompt || "",
-      ),
+      description: getManagedAgentPromptForDisplay(item.description || childTask?.prompt || ""),
       taskId: item.sourceTaskId || null,
       // Use createdAt (spawn time) for ordering, not updatedAt (last-modified time)
       createdAt: item.createdAt,
@@ -210,22 +186,25 @@ export function CollaborativeSummaryPanel({
         }));
 
   const completedCount = childTasks.filter(
-    (t) =>
-      t.status === "completed" ||
-      t.status === "failed" ||
-      t.status === "cancelled",
+    (task) => getAgentTaskStatus(task) === "completed",
   ).length;
-  const workingCount = childTasks.filter(
-    (t) =>
-      t.status === "executing" ||
-      t.status === "planning" ||
-      t.status === "interrupted",
-  ).length;
-  const allDone = completedCount === childTasks.length && childTasks.length > 0;
+  const workingCount = childTasks.filter((task) => getAgentTaskStatus(task) === "running").length;
+  const allDone =
+    completedCount === childTasks.length &&
+    childTasks.length > 0 &&
+    collaborativeRun.status === "completed";
+  const runStopped = ["completed", "failed", "cancelled"].includes(collaborativeRun.status);
+  const statusLabel = allDone
+    ? t("collab.summary.completed", "Completed")
+    : collaborativeRun.status === "cancelled"
+      ? t("collab.lines.cancelled", "Cancelled")
+      : collaborativeRun.status === "failed"
+        ? t("collab.lines.failed", "Failed")
+        : runStopped
+          ? t("collab.lines.partial", "Partially completed")
+          : t("collab.summary.inProgress", "In progress");
 
-  const displayUserPrompt = userPrompt
-    ? getManagedAgentPromptForDisplay(userPrompt)
-    : "";
+  const displayUserPrompt = userPrompt ? getManagedAgentPromptForDisplay(userPrompt) : "";
 
   // Build chronological timeline
   const timeline = useMemo(() => {
@@ -237,9 +216,7 @@ export function CollaborativeSummaryPanel({
       (t) =>
         t.phase === "dispatch" &&
         t.content.length > 40 &&
-        /^(I'm|I'll|We're|Splitting|Dividing|Coordinating|Creating)/i.test(
-          t.content.trim(),
-        ),
+        /^(I'm|I'll|We're|Splitting|Dividing|Coordinating|Creating)/i.test(t.content.trim()),
     );
     if (strategicThought) {
       entries.push({
@@ -252,14 +229,10 @@ export function CollaborativeSummaryPanel({
       entries.push({
         kind: "strategic",
         id: "strategic-generated",
-        content: t(
-          "collab.summary.coordinating",
-          "Coordinating {count} agents to {task}.",
-          {
-            count: displayItems.length,
-            task: truncate(displayUserPrompt, 80),
-          },
-        ),
+        content: t("collab.summary.coordinating", "Coordinating {count} agents to {task}.", {
+          count: displayItems.length,
+          task: truncate(displayUserPrompt, 80),
+        }),
         ts: runStart,
       });
     }
@@ -270,14 +243,11 @@ export function CollaborativeSummaryPanel({
       .map((d) => {
         const childTask = d.taskId ? childByTaskId.get(d.taskId) : null;
         const roleId =
-          childTask?.assignedAgentRoleId ??
-          (d.taskId ? taskToRoleId.get(d.taskId) : undefined);
+          childTask?.assignedAgentRoleId ?? (d.taskId ? taskToRoleId.get(d.taskId) : undefined);
         const role = roleId ? agentRoles.get(roleId) : undefined;
         const ts =
           spawnEvents.length > 0
-            ? spawnEvents.find(
-                (e) => e.item.id === d.id || e.item.sourceTaskId === d.taskId,
-              )?.ts
+            ? spawnEvents.find((e) => e.item.id === d.id || e.item.sourceTaskId === d.taskId)?.ts
             : (childTask?.createdAt ??
               childTask?.updatedAt ??
               (d as { createdAt?: number }).createdAt ??
@@ -295,10 +265,7 @@ export function CollaborativeSummaryPanel({
       .filter((s) => s.ts != null && s.ts > 0)
       .sort((a, b) => a.ts - b.ts);
 
-    const spawnTs =
-      spawnOrder.length > 0
-        ? Math.min(...spawnOrder.map((s) => s.ts))
-        : runStart;
+    const spawnTs = spawnOrder.length > 0 ? Math.min(...spawnOrder.map((s) => s.ts)) : runStart;
     entries.push({
       kind: "spawn_header",
       id: "spawn-header",
@@ -319,14 +286,14 @@ export function CollaborativeSummaryPanel({
     }
 
     // 4. Status indicator based on current phase
-    if (phase === "dispatch") {
+    if (!runStopped && phase === "dispatch") {
       entries.push({
         kind: "status",
         id: "status-thinking",
         label: t("collab.summary.planning", "Planning..."),
         ts: spawnTs + 100,
       });
-    } else if (phase === "think" || phase === "execute") {
+    } else if (!runStopped && (phase === "think" || phase === "execute")) {
       entries.push({
         kind: "status",
         id: "status-thinking",
@@ -348,12 +315,9 @@ export function CollaborativeSummaryPanel({
     }
 
     // 6. Status: "Sub-agents working..." (when we have thoughts and agents running)
-    if (workingCount > 0 && thoughts.length > 0) {
-      const lastThoughtTs =
-        thoughts.length > 0 ? Math.max(...thoughts.map((t) => t.createdAt)) : 0;
-      if (
-        !entries.some((e) => e.kind === "status" && e.id === "status-working")
-      ) {
+    if (!runStopped && workingCount > 0 && thoughts.length > 0) {
+      const lastThoughtTs = thoughts.length > 0 ? Math.max(...thoughts.map((t) => t.createdAt)) : 0;
+      if (!entries.some((e) => e.kind === "status" && e.id === "status-working")) {
         entries.push({
           kind: "status",
           id: "status-working",
@@ -364,7 +328,7 @@ export function CollaborativeSummaryPanel({
     }
 
     // 7. Status: "Synthesizing..." (when phase=synthesize)
-    if (phase === "synthesize") {
+    if (!runStopped && phase === "synthesize") {
       entries.push({
         kind: "status",
         id: "status-synthesize",
@@ -378,11 +342,9 @@ export function CollaborativeSummaryPanel({
       entries.push({
         kind: "status",
         id: "status-complete",
-        label: t(
-          "collab.summary.allCompleted",
-          "All {count} agents completed",
-          { count: childTasks.length },
-        ),
+        label: t("collab.summary.allCompleted", "All {count} agents completed", {
+          count: childTasks.length,
+        }),
         ts: collaborativeRun.completedAt ?? Date.now(),
       });
     }
@@ -398,6 +360,7 @@ export function CollaborativeSummaryPanel({
     phase,
     workingCount,
     allDone,
+    runStopped,
     displayUserPrompt,
     language,
     collaborativeRun.startedAt,
@@ -417,26 +380,15 @@ export function CollaborativeSummaryPanel({
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
       >
-        <ChevronDown
-          className={`collab-summary-chevron ${expanded ? "expanded" : ""}`}
-          size={18}
-        />
+        <ChevronDown className={`collab-summary-chevron ${expanded ? "expanded" : ""}`} size={18} />
         <span className="collab-summary-heading-text">
-          {allDone
-            ? t("collab.summary.completed", "Completed")
-            : t("collab.summary.inProgress", "In progress")}
+          {statusLabel}
           {" · "}
           {t("collab.summary.agentCount", "{count} agents", {
             count: displayItems.length,
           })}
         </span>
-        {allDone && (
-          <Check
-            className="collab-summary-done-badge"
-            size={18}
-            strokeWidth={2.5}
-          />
-        )}
+        {allDone && <Check className="collab-summary-done-badge" size={18} strokeWidth={2.5} />}
       </button>
 
       {expanded && (
@@ -452,7 +404,7 @@ export function CollaborativeSummaryPanel({
             if (entry.kind === "spawn_header") {
               return (
                 <div key={entry.id} className="collab-timeline-spawn-header">
-                  {t("collab.summary.spawning", "Spawning {count} agents", {
+                  {t("collab.summary.spawned", "Created {count} agents", {
                     count: entry.count,
                   })}
                 </div>
@@ -466,51 +418,30 @@ export function CollaborativeSummaryPanel({
                     <SpawnIcon size={14} strokeWidth={1.5} />
                   </span>
                   <span className="collab-timeline-spawn-body">
-                    <span
+                    <button
+                      type="button"
                       className={`collab-timeline-spawn-name ${entry.title === SYNTHESIS_TASK_TITLE ? "collab-timeline-spawn-synthesis" : ""}`}
-                      onClick={() =>
-                        entry.taskId &&
-                        entry.title !== SYNTHESIS_TASK_TITLE &&
-                        openChildAgent?.(entry.taskId)
-                      }
-                      role={
-                        openChildAgent &&
-                        entry.taskId &&
-                        entry.title !== SYNTHESIS_TASK_TITLE
-                          ? "button"
-                          : undefined
-                      }
+                      disabled={!entry.taskId || !openChildAgent}
+                      onClick={() => entry.taskId && openChildAgent?.(entry.taskId)}
                     >
                       {t("collab.summary.created", "Created {name}", {
-                        name: getLocalizedSubagentDisplay(
-                          stripLeadingEmoji(entry.title),
-                          language,
-                        ).name,
+                        name: getLocalizedSubagentDisplay(stripLeadingEmoji(entry.title), language)
+                          .name,
                       })}
-                    </span>
+                    </button>
                     <span className="collab-timeline-spawn-desc">
                       {" "}
-                      {t(
-                        "collab.summary.instructions",
-                        "with the instructions:",
-                      )}{" "}
+                      {t("collab.summary.instructions", "with the instructions:")}{" "}
                       <span className="markdown-content markdown-inline">
                         <ReactMarkdown
                           remarkPlugins={[remarkGfm, remarkBreaks]}
                           components={{
-                            p: ({ children }) => (
-                              <>{replaceEmojisInChildren(children, 12)}</>
-                            ),
-                            li: ({ children }) => (
-                              <>{replaceEmojisInChildren(children, 12)}</>
-                            ),
+                            p: ({ children }) => <>{replaceEmojisInChildren(children, 12)}</>,
+                            li: ({ children }) => <>{replaceEmojisInChildren(children, 12)}</>,
                           }}
                         >
                           {fixUnclosedBold(
-                            truncate(
-                              normalizeMarkdownForCollab(entry.description),
-                              150,
-                            ),
+                            truncate(normalizeMarkdownForCollab(entry.description), 150),
                           )}
                         </ReactMarkdown>
                       </span>
@@ -528,13 +459,8 @@ export function CollaborativeSummaryPanel({
                 >
                   {isComplete ? (
                     <Check size={14} strokeWidth={2.5} />
-                  ) : entry.id === "status-thinking" ||
-                    entry.id === "status-synthesize" ? (
-                    <Loader2
-                      className="collab-summary-spinner"
-                      size={14}
-                      strokeWidth={2.5}
-                    />
+                  ) : entry.id === "status-thinking" || entry.id === "status-synthesize" ? (
+                    <Loader2 className="collab-summary-spinner" size={14} strokeWidth={2.5} />
                   ) : null}
                   <span>{entry.label}</span>
                 </div>
@@ -543,10 +469,7 @@ export function CollaborativeSummaryPanel({
             if (entry.kind === "thought") {
               const err = isErrorLike(entry.thought.content);
               const content = fixUnclosedBold(
-                truncate(
-                  normalizeMarkdownForCollab(entry.thought.content),
-                  300,
-                ),
+                truncate(normalizeMarkdownForCollab(entry.thought.content), 300),
               );
               return (
                 <div
@@ -558,21 +481,14 @@ export function CollaborativeSummaryPanel({
                     className="collab-timeline-thought-agent"
                     style={{ color: entry.thought.agentColor }}
                   >
-                    {getLocalizedAgentRoleName(
-                      entry.thought.agentDisplayName,
-                      language,
-                    )}
+                    {getLocalizedAgentRoleName(entry.thought.agentDisplayName, language)}
                   </span>
                   <div className="collab-timeline-thought-content markdown-content">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm, remarkBreaks]}
                       components={{
-                        p: ({ children }) => (
-                          <p>{replaceEmojisInChildren(children, 14)}</p>
-                        ),
-                        li: ({ children }) => (
-                          <li>{replaceEmojisInChildren(children, 14)}</li>
-                        ),
+                        p: ({ children }) => <p>{replaceEmojisInChildren(children, 14)}</p>,
+                        li: ({ children }) => <li>{replaceEmojisInChildren(children, 14)}</li>,
                       }}
                     >
                       {content}
@@ -590,18 +506,14 @@ export function CollaborativeSummaryPanel({
       {(() => {
         const synthesisTask = childTasks.find((t) => isSynthesisChildTask(t));
         if (!synthesisTask) return null;
-        const synthesisEvents = childEvents.filter(
-          (e) => e.taskId === synthesisTask.id,
-        );
+        const synthesisEvents = childEvents.filter((e) => e.taskId === synthesisTask.id);
         const lastAssistant = [...synthesisEvents]
           .reverse()
           .find((e) => getEffectiveTaskEventType(e) === "assistant_message");
         const synthesisOutput =
           sanitizeHermesText(synthesisTask.resultSummary?.trim() || "") ||
           sanitizeHermesText(
-            (
-              lastAssistant?.payload as { message?: string } | undefined
-            )?.message?.trim() || "",
+            (lastAssistant?.payload as { message?: string } | undefined)?.message?.trim() || "",
           );
         if (!synthesisOutput) return null;
         return (
@@ -613,12 +525,8 @@ export function CollaborativeSummaryPanel({
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkBreaks]}
                 components={{
-                  p: ({ children }) => (
-                    <p>{replaceEmojisInChildren(children, 14)}</p>
-                  ),
-                  li: ({ children }) => (
-                    <li>{replaceEmojisInChildren(children, 14)}</li>
-                  ),
+                  p: ({ children }) => <p>{replaceEmojisInChildren(children, 14)}</p>,
+                  li: ({ children }) => <li>{replaceEmojisInChildren(children, 14)}</li>,
                 }}
               >
                 {normalizeMarkdownForCollab(synthesisOutput)}
@@ -629,15 +537,9 @@ export function CollaborativeSummaryPanel({
       })()}
 
       {/* Live status — spinner, "Agents are working...", Wrap Up — until main task completes */}
-      {!mainTaskCompleted && (
+      {!mainTaskCompleted && !runStopped && (
         <div className="collab-summary-status collab-summary-status-active">
-          {!allDone && (
-            <Loader2
-              className="collab-summary-spinner"
-              size={16}
-              strokeWidth={2.5}
-            />
-          )}
+          {!allDone && <Loader2 className="collab-summary-spinner" size={16} strokeWidth={2.5} />}
           <span>
             {isWrappingUp
               ? t("collab.wrappingUp", "Wrapping up...")

@@ -64,53 +64,100 @@ function renderLines(childTask: Task, childEvents: TaskEvent[]): string {
 }
 
 describe("CollaborativeAgentLines", () => {
-  it("renders an accessible collapse control above the expert list", () => {
+  it.each(["completed", "failed", "cancelled", "paused"] as const)(
+    "does not revive a %s team's wrap-up when a follow-up is running",
+    (status) => {
+      const markup = render(React.createElement(CollaborativeAgentLines, {
+        collaborativeRun: makeRun({ status }),
+        childTasks: Array.from({ length: 5 }, (_, index) => makeTask({
+          id: `finished-${index}`, status: "completed", terminalStatus: "ok",
+        })),
+        onOpenAgent: () => undefined,
+        onWrapUp: () => undefined,
+        mainTaskCompleted: false, // The new PDF query is executing.
+        isWrappingUp: true, // A stale click flag from the previous turn.
+      }));
+      expect(markup).toContain("5 个完成");
+      expect(markup).not.toContain("collab-lines-actions");
+      expect(markup).not.toContain("正在收尾");
+      expect(markup).not.toContain("collab-wrap-up-inline-btn");
+      expect(markup).toContain("collab-agent-open-btn");
+    },
+  );
+
+  it("hides wrap-up once the team's phase is complete, even before the status update arrives", () => {
+    const markup = render(React.createElement(CollaborativeAgentLines, {
+      collaborativeRun: makeRun({ status: "running", phase: "complete" }),
+      childTasks: [makeTask({ status: "completed" })],
+      onOpenAgent: () => undefined,
+      onWrapUp: () => undefined,
+      isWrappingUp: true,
+      mainTaskCompleted: false,
+    }));
+    expect(markup).not.toContain("collab-lines-actions");
+  });
+
+  it("keeps wrap-up feedback for a team that is actually synthesizing", () => {
+    const markup = render(React.createElement(CollaborativeAgentLines, {
+      collaborativeRun: makeRun({ status: "running", phase: "synthesize" }),
+      childTasks: [makeTask({ title: "Synthesis", status: "executing" })],
+      onOpenAgent: () => undefined,
+      onWrapUp: () => undefined,
+      isWrappingUp: true,
+      mainTaskCompleted: false,
+    }));
+    expect(markup).toContain("正在收尾");
+    expect(markup).toContain("collab-wrap-up-inline-btn active");
+  });
+
+  it("keeps cancelled synthesis history accessible from its card", () => {
     const markup = renderLines(
-      makeTask({ title: "Anansi (builder)", status: "executing" }),
+      makeTask({ title: "Synthesis", status: "cancelled", workerRole: "synthesizer" }),
       [],
     );
+    expect(markup).toContain("已取消");
+    expect(markup).toContain('class="collab-agent-open-btn"');
+    expect(markup).not.toContain("1 个失败");
+  });
 
-    expect(markup).toContain('aria-expanded="true"');
-    expect(markup).toContain('aria-label="折叠"');
+  it("renders an accessible collapse control above the expert list", () => {
+    const markup = renderLines(makeTask({ title: "Anansi (builder)", status: "executing" }), []);
+
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).toContain('aria-label="展开"');
     expect(markup).toContain('class="collab-lines-toggle"');
     expect(markup).toMatch(/aria-controls="[^"]+"/);
   });
 
   it("shows completed for a finished subagent instead of a later DELIVER stage start", () => {
-    const markup = renderLines(
-      makeTask({ status: "completed", completedAt: 1740841080000 }),
-      [
-        makeEvent("step_completed", 1740841020000, {
-          description: "Collect evidence",
-        }),
-        makeEvent(
-          "timeline_group_started",
-          1740841080000,
-          { stage: "DELIVER", message: "Starting DELIVER" },
-          { groupId: "stage:deliver" },
-        ),
-      ],
-    );
+    const markup = renderLines(makeTask({ status: "completed", completedAt: 1740841080000 }), [
+      makeEvent("step_completed", 1740841020000, {
+        description: "Collect evidence",
+      }),
+      makeEvent(
+        "timeline_group_started",
+        1740841080000,
+        { stage: "DELIVER", message: "Starting DELIVER" },
+        { groupId: "stage:deliver" },
+      ),
+    ]);
 
     expect(markup).toContain("1 个完成");
     expect(markup).not.toContain("Starting DELIVER");
   });
 
   it("surfaces failed terminal subagent status with the latest failure label", () => {
-    const markup = renderLines(
-      makeTask({ status: "failed", error: "Network lookup failed" }),
-      [
-        makeEvent("step_failed", 1740841020000, {
-          description: "Fetch upstream release",
-        }),
-        makeEvent(
-          "timeline_group_started",
-          1740841080000,
-          { stage: "DELIVER", message: "Starting DELIVER" },
-          { groupId: "stage:deliver" },
-        ),
-      ],
-    );
+    const markup = renderLines(makeTask({ status: "failed", error: "Network lookup failed" }), [
+      makeEvent("step_failed", 1740841020000, {
+        description: "Fetch upstream release",
+      }),
+      makeEvent(
+        "timeline_group_started",
+        1740841080000,
+        { stage: "DELIVER", message: "Starting DELIVER" },
+        { groupId: "stage:deliver" },
+      ),
+    ]);
 
     expect(markup).toContain("失败：Fetch upstream release");
     expect(markup).not.toContain("Starting DELIVER");
@@ -142,25 +189,19 @@ describe("CollaborativeAgentLines", () => {
     ["needs_user_action", "需要你处理"],
     ["awaiting_approval", "等待批准"],
     ["resume_available", "可继续"],
-  ] as const)(
-    "shows %s with its real action state",
-    (terminalStatus, label) => {
-      const markup = renderLines(
-        makeTask({ status: "completed", terminalStatus }),
-        [],
-      );
+  ] as const)("shows %s with its real action state", (terminalStatus, label) => {
+    const markup = renderLines(makeTask({ status: "completed", terminalStatus }), []);
 
-      expect(markup).toContain(label);
-      expect(markup).toContain(
-        terminalStatus === "needs_user_action"
-          ? "去处理"
-          : terminalStatus === "awaiting_approval"
-            ? "去批准"
-            : "继续",
-      );
-      expect(markup).not.toContain("需要审核");
-    },
-  );
+    expect(markup).toContain(label);
+    expect(markup).toContain(
+      terminalStatus === "needs_user_action"
+        ? "去处理"
+        : terminalStatus === "awaiting_approval"
+          ? "去批准"
+          : "继续",
+    );
+    expect(markup).not.toContain("需要审核");
+  });
 
   it("shows per-agent terminal chips and aggregate counts", () => {
     const markup = render(
@@ -212,10 +253,7 @@ describe("CollaborativeAgentLines", () => {
   });
 
   it("shows generated callsigns as clear Chinese expert roles", () => {
-    const markup = renderLines(
-      makeTask({ title: "Anansi (builder)", status: "executing" }),
-      [],
-    );
+    const markup = renderLines(makeTask({ title: "Anansi (builder)", status: "executing" }), []);
 
     expect(markup).toContain("方案构建专家");
     expect(markup).toContain("负责实现方案、搭建产出并完成交付");

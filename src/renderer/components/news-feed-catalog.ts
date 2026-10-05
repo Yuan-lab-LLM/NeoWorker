@@ -75,7 +75,6 @@ export const NEWS_FEED_CATEGORIES: NewsFeedCategory[] = [
         name: "电子工程专辑",
         nameEn: "EE Times China",
       },
-      { id: "chinatalk", adapter: "chinatalk", name: "ChinaTalk" },
     ],
   },
   {
@@ -135,6 +134,37 @@ export const NEWS_FEED_CATEGORIES: NewsFeedCategory[] = [
       { id: "stratechery", adapter: "stratechery", name: "Stratechery" },
       { id: "benevans", adapter: "benevans", name: "Benedict Evans" },
       { id: "bcg", adapter: "bcg", name: "波士顿咨询", nameEn: "BCG" },
+    ],
+  },
+  {
+    id: "health", name: "健康与生活", nameEn: "Health & living",
+    description: "健康科普、运动、营养与生活方式", descriptionEn: "Health research, exercise, nutrition and wellbeing",
+    providers: [
+      { id: "who", adapter: "who", name: "世界卫生组织", nameEn: "WHO" },
+      { id: "sciencedailyhealth", adapter: "sciencedailyhealth", name: "ScienceDaily · 健康", nameEn: "ScienceDaily \u00b7 Health" },
+    ],
+  },
+  {
+    id: "consumer", name: "消费与好物", nameEn: "Shopping & reviews",
+    description: "产品评测、选购指南与数码家电", descriptionEn: "Product reviews, buying guides and consumer technology",
+    providers: [
+      { id: "androidreviews", adapter: "androidreviews", name: "Android Authority · 评测", nameEn: "Android Authority \u00b7 Reviews" },
+      { id: "engadget", adapter: "engadget", name: "Engadget", nameEn: "Engadget" },
+    ],
+  },
+  {
+    id: "productivity", name: "效率与工具", nameEn: "Productivity & tools",
+    description: "实用软件、AI 工具与办公技巧", descriptionEn: "Useful software, AI tools and productive workflows",
+    providers: [
+      { id: "zapier", adapter: "zapier", name: "Zapier · 效率指南", nameEn: "Zapier \u00b7 Productivity" },
+    ],
+  },
+  {
+    id: "learning", name: "学习与成长", nameEn: "Learning & growth",
+    description: "学习方法、课程与职业发展", descriptionEn: "Learning methods, courses and career development",
+    providers: [
+      { id: "learningresearch", adapter: "learningresearch", name: "学习科学", nameEn: "The Learning Scientists" },
+      { id: "coursera", adapter: "coursera", name: "Coursera", nameEn: "Coursera" },
     ],
   },
 ];

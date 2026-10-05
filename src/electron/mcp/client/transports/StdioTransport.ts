@@ -16,6 +16,7 @@ import {
   JSONRPCNotification,
 } from "../../types";
 import { createLogger } from "../../../utils/logger";
+import { stdioEnvironment } from "./stdio-environment";
 
 interface PendingRequest {
   resolve: (result: Any) => void;
@@ -190,10 +191,7 @@ export class StdioTransport extends EventEmitter implements MCPTransport {
 
       try {
         // Merge environment variables
-        const processEnv = {
-          ...process.env,
-          ...env,
-        };
+        const processEnv = stdioEnvironment(process.env, env);
 
         // Substitute ${VAR} in args with env values (for connectors that require CLI args)
         const resolvedArgs = args.map((arg) => {

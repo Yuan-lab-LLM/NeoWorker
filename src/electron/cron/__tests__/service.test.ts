@@ -82,6 +82,217 @@ describe("CronService", () => {
     vi.useRealTimers();
   });
 
+  it("keeps listing and pausing responsive while preventing a duplicate in-flight run", async () => {
+    let release!: () => void;
+    let started!: () => void;
+    const entered = new Promise<void>((resolve) => { started = resolve; });
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const createTask = vi.fn(async () => { started(); await pending; return { id: "shared" }; });
+    service = createService({ createTask });
+    await service.start();
+    await service.add({ name: "Quote", enabled: true, workspaceId: "ws-1", taskPrompt: "Price",
+      schedule: { kind: "every", everyMs: 60_000 } });
+    const running = service.run("job-1", "force");
+    await entered;
+    try {
+      expect(await service.list({ includeDisabled: true })).toHaveLength(1);
+      await service.update("job-1", { enabled: false });
+      expect(await service.run("job-1", "force")).toMatchObject({ ran: false, reason: "already-running" });
+      expect(createTask).toHaveBeenCalledTimes(1);
+    } finally { release(); await running; }
+  });
+
+  it("reuses one conversation across scheduled runs and a restart, keeping each result and delivery distinct", async () => {
+    let now = 1_000_000;
+    let output = "quote 1";
+    const getTaskStatus = vi.fn(async () => ({ status: "completed", source: "cron", workspaceId: "ws-1", scheduledJobId: "job-1" }));
+    const sendTaskMessage = vi.fn(async () => ({ queued: false }));
+    const deliverToChannel = vi.fn(async () => undefined);
+    const deps = { nowMs: () => now, getTaskStatus, sendTaskMessage, deliverToChannel,
+      getTaskResultText: vi.fn(async () => output) };
+    service = createService(deps);
+    await service.start();
+    await service.add({ name: "Quote", enabled: false, workspaceId: "ws-1", taskPrompt: "Get current price",
+      schedule: { kind: "every", everyMs: 60_000 }, modelKey: "my-model",
+      delivery: { enabled: true, channelType: "weixin", channelId: "receiver" } });
+    await service.run("job-1", "force");
+    now += 60_000; output = "quote 2";
+    await service.run("job-1", "force");
+    expect(mockCreateTask).toHaveBeenCalledTimes(1);
+    expect(sendTaskMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      taskId: "task-123", agentConfig: expect.objectContaining({ scheduledJobId: "job-1", modelKey: "my-model" }),
+    }));
+    const snapshot = structuredClone((service as any).state.store);
+    await service.stop();
+    vi.mocked(loadCronStore).mockResolvedValue(snapshot);
+    service = createService(deps);
+    await service.start();
+    now += 60_000; output = "quote 3";
+    await service.run("job-1", "force");
+    expect(mockCreateTask).not.toHaveBeenCalled();
+    expect(sendTaskMessage).toHaveBeenCalledTimes(2);
+    const entries = (await service.getRunHistory("job-1"))!.entries;
+    expect(entries.map(e => e.taskId)).toEqual(["task-123", "task-123", "task-123"]);
+    expect(entries.map(e => e.resultText)).toEqual(["quote 3", "quote 2", "quote 1"]);
+    expect(new Set(entries.map(e => e.runAtMs)).size).toBe(3);
+    expect(deliverToChannel.mock.calls.map(([p]: any) => p.resultText)).toEqual(["quote 1", "quote 2", "quote 3"]);
+    expect(new Set(deliverToChannel.mock.calls.map(([p]: any) => p.idempotencyKey)).size).toBe(3);
+  });
+
+  it("adopts the last conversation of a legacy job without a session binding", async () => {
+    const sendTaskMessage = vi.fn(async () => ({ queued: false }));
+    service = createService({ sendTaskMessage, getTaskStatus: async () => ({ status: "completed", source: "cron", workspaceId: "ws-1" }) });
+    await service.start();
+    await service.add({ name: "Legacy", enabled: false, workspaceId: "ws-1", taskPrompt: "Continue",
+      schedule: { kind: "every", everyMs: 60_000 }, state: { lastTaskId: "legacy-task" } });
+    await service.run("job-1", "force");
+    expect(mockCreateTask).not.toHaveBeenCalled();
+    expect(sendTaskMessage).toHaveBeenCalledWith(expect.objectContaining({ taskId: "legacy-task" }));
+    expect((await service.get("job-1"))?.state.sessionTaskId).toBe("legacy-task");
+  });
+
+  it.each([
+    { source: "manual", workspaceId: "ws-1" },
+    { source: "cron", workspaceId: "ws-other" },
+    { source: "cron", workspaceId: "ws-1", scheduledJobId: "other-job" },
+  ])("does not reuse an unrelated conversation: %j", async (metadata) => {
+    const sendTaskMessage = vi.fn(async () => ({ queued: false }));
+    service = createService({ sendTaskMessage, getTaskStatus: async () => ({ status: "completed", ...metadata }) });
+    await service.start();
+    await service.add({ name: "Isolated", enabled: false, workspaceId: "ws-1", taskPrompt: "Continue",
+      schedule: { kind: "every", everyMs: 60_000 }, state: { lastTaskId: "unrelated" } });
+    await service.run("job-1", "force");
+    expect(mockCreateTask).toHaveBeenCalledTimes(1);
+    expect(sendTaskMessage).not.toHaveBeenCalled();
+  });
+
+  it("applies the overlap guard to the real timer path, including pending approval receipts", async () => {
+    service = createService({ getTaskStatus: async () => ({ status: "executing" }) });
+    await service.start();
+    await service.add({ name: "Timer", enabled: true, workspaceId: "ws-1", taskPrompt: "Run",
+      schedule: { kind: "every", everyMs: 60_000 } });
+    await service.update("job-1", { state: { lastTaskId: "busy-task", nextRunAtMs: 900_000 } });
+    await (service as any).onTimer();
+    expect(mockCreateTask).not.toHaveBeenCalled();
+    expect((await service.get("job-1"))?.state.nextRunAtMs).toBeGreaterThan(1_000_000);
+  });
+
+  it("recovers an interrupted second run even though its session already has an earlier receipt", async () => {
+    vi.useFakeTimers();
+    const oldRun = { runAtMs: 1_000, durationMs: 100, status: "ok" as const, taskId: "shared", resultText: "old", deliverableStatus: "sent" as const };
+    vi.mocked(loadCronStore).mockResolvedValue({ version: 1, jobs: [{ id: "legacy-job", name: "Recover", enabled: false,
+      createdAtMs: 0, updatedAtMs: 0, workspaceId: "ws-1", taskPrompt: "Run", schedule: { kind: "every", everyMs: 60_000 },
+      state: { runningAtMs: 2_000, lastRunAtMs: 2_000, lastTaskId: "shared", runningResultSinceMs: 2_000,
+        runHistory: [oldRun], totalRuns: 1, successfulRuns: 1 } }] });
+    service = createService({ getTaskStatus: async () => ({ status: "completed", terminalStatus: "ok" }), getTaskResultText: async () => "new" });
+    await service.start();
+    await (service as any).reconcilePendingRuns();
+    const entries = (await service.getRunHistory("legacy-job"))!.entries;
+    expect(entries).toHaveLength(2);
+    expect(entries.map(e => e.resultText)).toEqual(["new", "old"]);
+    expect(entries[1].deliverableStatus).toBe("sent");
+  });
+
+  it("delivers the final result after approval, including a restart while waiting", async () => {
+    vi.useFakeTimers();
+    let taskStatus: any = { status: "blocked", terminalStatus: "awaiting_approval" };
+    const deliverToChannel = vi.fn().mockResolvedValue(undefined);
+    const deps = {
+      nowMs: () => Date.now(),
+      getTaskStatus: vi.fn(async () => taskStatus),
+      getTaskResultText: vi.fn(async () => "Final stock analysis"),
+      deliverToChannel,
+    };
+    service = createService(deps);
+    await service.start();
+    await service.add({ name: "IEIT-stock", enabled: true, workspaceId: "ws-1", taskPrompt: "Analyze stock",
+      schedule: { kind: "every", everyMs: 60_000 },
+      delivery: { enabled: true, channelType: "weixin", channelDbId: "wechat-account", channelId: "recipient" },
+    });
+    await service.run("job-1", "force");
+    expect(deliverToChannel).not.toHaveBeenCalled();
+    expect((await service.getRunHistory("job-1"))?.entries[0].taskStillRunning).toBe(true);
+    const persisted = structuredClone((service as any).state.store);
+    await service.stop();
+    vi.mocked(loadCronStore).mockResolvedValue(persisted);
+    service = createService(deps);
+    await service.start();
+    taskStatus = { status: "executing" };
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(deliverToChannel).not.toHaveBeenCalled();
+    taskStatus = { status: "completed", terminalStatus: "ok" };
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(deliverToChannel).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      channelDbId: "wechat-account", channelId: "recipient", status: "ok", resultText: "Final stock analysis",
+    }));
+    expect((await service.getRunHistory("job-1"))?.entries[0]).toMatchObject({
+      status: "ok", taskStillRunning: false, deliverableStatus: "sent", deliveryStatus: "success",
+    });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(deliverToChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates independent automatic workspaces without selecting an existing folder", async () => {
+    const resolveWorkspaceContext = vi.fn(async ({ job }: any) => ({ workspaceId: `managed-${job.id}`, workspacePath: `/managed/${job.id}` }));
+    service = createService({ resolveWorkspaceContext });
+    await service.start();
+    const first = await service.add({ name: "Stock", enabled: true, workspaceId: "", workspaceMode: "automatic", taskPrompt: "Analyze", schedule: { kind: "every", everyMs: 60_000 } });
+    const second = await service.add({ name: "News", enabled: true, workspaceId: "", workspaceMode: "automatic", taskPrompt: "Summarize", schedule: { kind: "every", everyMs: 60_000 } });
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    expect((await service.get("job-1"))).toMatchObject({ workspaceMode: "automatic", workspaceId: "managed-job-1" });
+    expect((await service.get("job-2"))).toMatchObject({ workspaceMode: "automatic", workspaceId: "managed-job-2" });
+    await service.run("job-1", "force");
+    expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "managed-job-1" }));
+    await service.update("job-1", { workspaceId: "selected-folder", workspaceMode: "selected" });
+    expect(await service.get("job-1")).toMatchObject({ workspaceId: "selected-folder", workspaceMode: "selected" });
+  });
+
+  it("recovers delivery when the app exits before the first run receipt is saved", async () => {
+    vi.useFakeTimers();
+    const deliverToChannel = vi.fn().mockResolvedValue(undefined);
+    service = createService({ nowMs: () => Date.now(), getTaskStatus: async () => ({ status: "completed", terminalStatus: "ok", resultSummary: "Recovered result" }), deliverToChannel });
+    await service.start();
+    await service.add({ name: "Interrupted poll", enabled: true, workspaceId: "ws-1", taskPrompt: "Work",
+      schedule: { kind: "every", everyMs: 60_000 },
+      delivery: { enabled: true, channelType: "weixin", channelId: "recipient" },
+    });
+    const store = structuredClone((service as any).state.store);
+    Object.assign(store.jobs[0].state, { runningAtMs: Date.now() - 1000, lastRunAtMs: Date.now() - 1000, lastTaskId: "task-restored" });
+    await service.stop();
+    vi.mocked(loadCronStore).mockResolvedValue(store);
+    await service.start();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(deliverToChannel).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ taskId: "task-restored", resultText: "Recovered result", status: "ok" }));
+    expect((await service.getRunHistory("job-1"))?.entries[0]).toMatchObject({ taskStillRunning: false, deliverableStatus: "sent" });
+  });
+
+  it("keeps a one-shot run until its timed-out executor finishes and queues failed delivery", async () => {
+    vi.useFakeTimers();
+    let taskStatus: any = { status: "executing" };
+    const deliverToChannel = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(undefined);
+    service = createService({ nowMs: () => Date.now(), defaultTimeoutMs: 100,
+      getTaskStatus: async () => taskStatus, getTaskResultText: async () => "Late final result", deliverToChannel });
+    await service.start();
+    await service.add({ name: "Once", enabled: true, deleteAfterRun: true, workspaceId: "ws-1", taskPrompt: "Work",
+      schedule: { kind: "at", atMs: Date.now() + 60_000 },
+      delivery: { enabled: true, channelType: "weixin", channelId: "recipient" },
+    });
+    const run = service.run("job-1", "force");
+    await vi.advanceTimersByTimeAsync(101);
+    await run;
+    expect(deliverToChannel).not.toHaveBeenCalled();
+    expect((await service.list({ includeDisabled: true })).length).toBe(1);
+    taskStatus = { status: "completed", terminalStatus: "ok" };
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(deliverToChannel).toHaveBeenCalledWith(expect.objectContaining({ resultText: "Late final result" }));
+    expect((service as any).state.store.outbox[0]).toMatchObject({ state: "queued", resultText: "Late final result" });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(deliverToChannel).toHaveBeenCalledTimes(2);
+    expect((service as any).state.store.outbox[0].state).toBe("sent");
+    expect(await service.list({ includeDisabled: true })).toHaveLength(0);
+  });
+
   describe("start/stop lifecycle", () => {
     it("should start service and load jobs", async () => {
       service = createService();
@@ -940,12 +1151,12 @@ describe("CronService", () => {
       const history = await service.getRunHistory("job-1");
       expect(history?.entries[0]?.status).toBe("needs_user_action");
       expect(history?.entries[0]?.error).toBe("Task paused for user input");
-      expect(history?.entries[0]?.taskStillRunning).toBeFalsy();
+      expect(history?.entries[0]?.taskStillRunning).toBe(true);
       expect(events).toContainEqual(
         expect.objectContaining({
           action: "finished",
           status: "needs_user_action",
-          taskStillRunning: false,
+          taskStillRunning: true,
         }),
       );
     });

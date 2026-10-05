@@ -37,6 +37,7 @@ interface RailButtonProps {
   active?: boolean;
   onClick: () => void;
   className?: string;
+  newSession?: boolean;
 }
 
 function RailButton({
@@ -45,17 +46,27 @@ function RailButton({
   active = false,
   onClick,
   className = "",
+  newSession = false,
 }: RailButtonProps) {
   return (
     <button
       type="button"
-      className={`collapsed-sidebar-rail-button ${active ? "active" : ""} ${className}`.trim()}
+      className={`new-task-btn cli-new-task-btn cli-action-btn collapsed-sidebar-rail-button ${newSession ? "sidebar-new-session-btn" : "sidebar-home-btn sidebar-nav-item"} ${active ? "active" : ""} ${className}`.trim()}
       onClick={onClick}
       aria-label={label}
       aria-current={active ? "page" : undefined}
       title={label}
     >
-      <Icon aria-hidden="true" size={19} strokeWidth={1.8} />
+      <span className="cli-btn-text">
+        <span className="cli-new-task-modern-label">
+          <span
+            className={`sidebar-home-btn-icon ${newSession ? "sidebar-new-session-icon" : ""}`.trim()}
+            aria-hidden="true"
+          >
+            <Icon size={16} strokeWidth={2} style={{ display: "block" }} />
+          </span>
+        </span>
+      </span>
     </button>
   );
 }
@@ -82,83 +93,107 @@ export function CollapsedSidebarRail({
 
   return (
     <aside
-      className="collapsed-sidebar-rail"
+      className="sidebar cli-sidebar collapsed-sidebar-rail"
       aria-label={translate("sidebar.navigation", "Main navigation")}
     >
-      <button
-        type="button"
-        className="collapsed-sidebar-rail-brand"
-        onClick={onExpand}
-        aria-label={translate("app.action.showSidebar", "Show sidebar")}
-        title={translate("app.action.showSidebar", "Show sidebar")}
-      >
-        <img src="./neoworker-app-icon.png" alt="" aria-hidden="true" />
-      </button>
+      <div className="sidebar-brand-row">
+        <button
+          type="button"
+          className="sidebar-brand-identity collapsed-sidebar-rail-brand"
+          onClick={onExpand}
+          aria-label={translate("app.action.showSidebar", "Show sidebar")}
+          title={translate("app.action.showSidebar", "Show sidebar")}
+        >
+          <img
+            className="sidebar-brand-logo"
+            src="./neoworker-app-icon.png"
+            width={28}
+            height={28}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+          />
+        </button>
+      </div>
 
       <nav
-        className="collapsed-sidebar-rail-navigation"
+        className="sidebar-header collapsed-sidebar-rail-navigation"
         aria-label={translate("sidebar.group.work", "Work")}
       >
-        <RailButton
-          label={translate("sidebar.newWork", "New job")}
-          icon={Plus}
-          onClick={onNewSession}
-        />
+        <div className="cli-header-actions sidebar-nav">
+          <div className="sidebar-top-actions-row">
+            <RailButton
+              label={translate("sidebar.newWork", "New job")}
+              icon={Plus}
+              onClick={onNewSession}
+              newSession
+            />
+          </div>
+          <div className="sidebar-nav-group">
+            <RailButton
+              label={translate("sidebar.proactive", "Daily assistant")}
+              icon={Sparkles}
+              active={isEverydayAgentActive}
+              onClick={onOpenEverydayAgent}
+            />
+            <RailButton
+              label={translate("sidebar.agentTeam", "Agent team")}
+              icon={UsersRound}
+              active={isAgentTeamActive}
+              onClick={onOpenAgentTeam}
+            />
+            <RailButton
+              label={translate("sidebar.ideas", "Inspiration")}
+              icon={Lightbulb}
+              active={isIdeasActive}
+              onClick={onOpenIdeas}
+            />
+            {onOpenPaperNews && (
+              <RailButton
+                label={translate("sidebar.paperNews", "News Feed")}
+                icon={Newspaper}
+                active={isPaperNewsActive}
+                onClick={onOpenPaperNews}
+              />
+            )}
+            <RailButton
+              label={translate("sidebar.automations", "Automation")}
+              icon={Clock3}
+              active={isAutomationsActive}
+              onClick={onOpenAutomations}
+            />
+            <RailButton
+              label={translate("sidebar.toolsAndSkills", "Tools and skills")}
+              icon={Wrench}
+              active={isToolsAndSkillsActive}
+              onClick={onOpenToolsAndSkills}
+            />
+          </div>
+        </div>
+        <div className="collapsed-sidebar-rail-divider" aria-hidden="true" />
         <RailButton
           label={translate("sidebar.sessions", "Sessions")}
           icon={MessageCircle}
           active={isSessionsActive}
           onClick={onExpand}
         />
-
-        <div className="collapsed-sidebar-rail-divider" aria-hidden="true" />
-
-        <RailButton
-          label={translate("sidebar.proactive", "Daily assistant")}
-          icon={Sparkles}
-          active={isEverydayAgentActive}
-          onClick={onOpenEverydayAgent}
-        />
-        <RailButton
-          label={translate("sidebar.agentTeam", "Agent team")}
-          icon={UsersRound}
-          active={isAgentTeamActive}
-          onClick={onOpenAgentTeam}
-        />
-        <RailButton
-          label={translate("sidebar.ideas", "Inspiration")}
-          icon={Lightbulb}
-          active={isIdeasActive}
-          onClick={onOpenIdeas}
-        />
-        {onOpenPaperNews && (
-          <RailButton
-            label={translate("sidebar.paperNews", "News Feed")}
-            icon={Newspaper}
-            active={isPaperNewsActive}
-            onClick={onOpenPaperNews}
-          />
-        )}
-        <RailButton
-          label={translate("sidebar.automations", "Automation")}
-          icon={Clock3}
-          active={isAutomationsActive}
-          onClick={onOpenAutomations}
-        />
-        <RailButton
-          label={translate("sidebar.toolsAndSkills", "Tools and skills")}
-          icon={Wrench}
-          active={isToolsAndSkillsActive}
-          onClick={onOpenToolsAndSkills}
-        />
       </nav>
 
-      <RailButton
-        label={translate("sidebar.settings", "Settings")}
-        icon={Settings}
-        onClick={onOpenSettings}
-        className="collapsed-sidebar-rail-settings"
-      />
+      <div className="sidebar-footer cli-sidebar-footer collapsed-sidebar-rail-footer">
+        <div className="cli-footer-actions">
+          <button
+            type="button"
+            className="settings-btn cli-settings-btn collapsed-sidebar-rail-settings"
+            onClick={onOpenSettings}
+            aria-label={translate("sidebar.settings", "Settings")}
+            title={translate("sidebar.settings", "Settings")}
+          >
+            <span className="modern-only">
+              <Settings size={16} strokeWidth={2} aria-hidden="true" />
+            </span>
+          </button>
+        </div>
+      </div>
     </aside>
   );
 }

@@ -19,7 +19,7 @@ import {
 const execFileAsync = promisify(execFile);
 const DEFAULT_RENDER_TIMEOUT_MS = 45_000;
 const DEFAULT_MAX_RENDERED_SLIDES = 80;
-const PPTX_PREVIEW_CACHE_VERSION = "8-normalized-render-input";
+const PPTX_PREVIEW_CACHE_VERSION = "9-isolated-page-paint";
 const PPTX_FONTCONFIG_VERSION = "2-cjk-font-aliases";
 
 export type PptxPreviewRenderMode = "fast" | "full";

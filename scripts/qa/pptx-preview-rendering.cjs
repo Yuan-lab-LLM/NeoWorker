@@ -6,6 +6,8 @@ const { createHash } = require("node:crypto");
 const assert = require("node:assert/strict");
 const { PptxPreviewService } = require("../../dist/electron/electron/utils/PptxPreviewService.js");
 const { renderOfficeHtmlVisualEvidence } = require("../../dist/electron/electron/utils/office-html-visual-renderer.js");
+const { execFile } = require("node:child_process");
+const { promisify } = require("node:util");
 
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 app.on("window-all-closed", () => {});
@@ -16,10 +18,18 @@ app.on("window-all-closed", () => {});
   app.setPath("userData", path.join(output, "user-data"));
   await app.whenReady();
   const before = hash(await fs.readFile(source));
-  const service = new PptxPreviewService({ cacheRoot: path.join(output, "cache") });
+  const officeCliOnly = process.argv.includes("--officecli-only");
+  const service = new PptxPreviewService({ cacheRoot: path.join(output, "cache"), ...(officeCliOnly ? {
+    artifactToolRunner: null,
+    commandRunner: (command, args, options) => {
+      if (path.basename(command) === "soffice") return Promise.reject(new Error("Native converter disabled for bundled-renderer QA"));
+      return promisify(execFile)(command, args, options);
+    },
+  } : {}) });
   const preview = await service.buildPreview({ filePath: source, renderMode: "full" });
   await fs.writeFile(path.join(output, "preview.json"), JSON.stringify(preview));
   assert.equal(preview.renderStatus, "rendered", preview.renderMessage);
+  if (officeCliOnly) assert.equal(preview.renderer, "officecli");
   const images = preview.slides.filter((slide) => slide.imageDataUrl);
   assert.equal(images.length, preview.slideCount);
   const hashes = [];

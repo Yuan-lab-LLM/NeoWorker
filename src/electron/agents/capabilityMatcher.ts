@@ -8,21 +8,28 @@ import { recordLlmCallError, recordLlmCallSuccess } from "../agent/llm/usage-tel
  * Maps each agent capability to a regex that detects relevant task content.
  */
 const CAPABILITY_SIGNALS: Record<AgentCapability, RegExp> = {
-  code: /\b(code|implement|build|develop|program|function|class|api|endpoint|refactor|fix|bug|script|module)\b/i,
-  review: /\b(review|audit|check|inspect|quality|PR|pull.?request|feedback|critique)\b/i,
-  test: /\b(test|spec|coverage|unit.?test|integration|e2e|QA|regression)\b/i,
-  design: /\b(design|UI|UX|mockup|wireframe|layout|component|visual|interface)\b/i,
-  research: /\b(research|investigate|explore|compare|evaluate|discover|survey|study)\b/i,
-  analyze: /\b(analy[sz]e|data|metrics|insight|trend|pattern|benchmark|performance|profil)\b/i,
-  plan: /\b(plan|architect|structure|system.?design|roadmap|strategy|approach)\b/i,
-  document: /\b(document|docs|readme|guide|tutorial|explanation)\b/i,
-  write: /\b(write|content|blog|article|copy|email|newsletter|draft)\b/i,
-  security: /\b(security|vulnerab|CVE|auth|encrypt|permission|OWASP|threat)\b/i,
-  ops: /\b(deploy|CI.?CD|docker|kubernetes|pipeline|infrastructure|monitoring|devops)\b/i,
-  communicate: /\b(communicate|customer|support|outreach|respond)\b/i,
-  market: /\b(market|campaign|growth|SEO|social.?media|brand|advertis)\b/i,
-  manage: /\b(manage|coordinate|timeline|sprint|milestone|project|priorit)\b/i,
-  product: /\b(product|feature|user.?story|backlog|requirement|stakeholder)\b/i,
+  code: /(?:\b(code|implement|build|develop|program|function|class|api|endpoint|refactor|fix|bug|script|module)\b|代码|编程|开发|修复|脚本|接口|重构)/i,
+  review:
+    /(?:\b(review|audit|check|inspect|quality|PR|pull.?request|feedback|critique)\b|核对|核查|审核|审查|校验|检查|质量)/i,
+  test: /(?:\b(test|spec|coverage|unit.?test|integration|e2e|QA|regression)\b|测试|回归|覆盖率)/i,
+  design:
+    /(?:\b(design|UI|UX|mockup|wireframe|layout|component|visual|interface)\b|设计|界面|视觉|布局|交互)/i,
+  research:
+    /(?:\b(research|investigate|explore|compare|evaluate|discover|survey|study)\b|调研|研究|调查|查询|搜索|查一下|天气|资料|来源)/i,
+  analyze:
+    /(?:\b(analy[sz]e|data|metrics|insight|trend|pattern|benchmark|performance|profil)\b|分析|数据|趋势|对比|比较|评估)/i,
+  plan: /(?:\b(plan|architect|structure|system.?design|roadmap|strategy|approach)\b|规划|架构|路线|策略|方案)/i,
+  document: /(?:\b(document|docs|readme|guide|tutorial|explanation)\b|文档|报告|手册|指南|说明)/i,
+  write:
+    /(?:\b(write|content|blog|article|copy|email|newsletter|draft)\b|撰写|写作|文章|邮件|草稿|分享)/i,
+  security:
+    /(?:\b(security|vulnerab|CVE|auth|encrypt|permission|OWASP|threat)\b|安全|漏洞|权限|加密)/i,
+  ops: /(?:\b(deploy|CI.?CD|docker|kubernetes|pipeline|infrastructure|monitoring|devops)\b|部署|运维|监控|流水线)/i,
+  communicate: /(?:\b(communicate|customer|support|outreach|respond)\b|沟通|客服|回复)/i,
+  market: /(?:\b(market|campaign|growth|SEO|social.?media|brand|advertis)\b|市场|营销|品牌|推广)/i,
+  manage:
+    /(?:\b(manage|coordinate|timeline|sprint|milestone|project|priorit)\b|管理|协调|里程碑|进度)/i,
+  product: /(?:\b(product|feature|user.?story|backlog|requirement|stakeholder)\b|产品|需求|功能)/i,
 };
 
 // ---------------------------------------------------------------------------
@@ -118,9 +125,9 @@ async function selectViaLLM(
 
     // Validate: memberIds must be an array of known IDs
     const roleIdSet = new Set(activeRoles.map((r) => r.id));
-    if (!Array.isArray(parsed.memberIds) || parsed.memberIds.length < 2) return null;
-    const validMembers = parsed.memberIds.filter((id) => roleIdSet.has(id));
-    if (validMembers.length < 2) return null;
+    if (!Array.isArray(parsed.memberIds)) return null;
+    const validMembers = [...new Set(parsed.memberIds.filter((id) => roleIdSet.has(id)))];
+    if (validMembers.length < (maxAgents === 1 ? 1 : 2)) return null;
 
     const leaderId =
       parsed.leaderId && roleIdSet.has(parsed.leaderId) ? parsed.leaderId : validMembers[0];
@@ -161,6 +168,11 @@ function selectViaKeywords(
     if (pattern.test(prompt)) detected.add(cap as AgentCapability);
   }
 
+  if (detected.size === 0) {
+    detected.add("research");
+    detected.add("communicate");
+  }
+
   // Use explicit max from prompt if provided, else heuristic
   let max = maxAgents ?? 3;
   if (maxAgents == null) {
@@ -183,7 +195,7 @@ function selectViaKeywords(
   const members = scored.slice(0, max).map((s) => s.role);
 
   // Pad with general-purpose agents if under minimum
-  if (members.length < min) {
+  if (members.length < min && maxAgents != null) {
     const remaining = activeRoles
       .filter((r) => !members.some((m) => m.id === r.id))
       .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -193,9 +205,9 @@ function selectViaKeywords(
   // Select leader: prefer "lead" autonomy among selected, else fallback
   let leader =
     members.find((m) => m.autonomyLevel === "lead") ||
-    activeRoles.find((r) => r.name === "architect") ||
-    activeRoles.find((r) => r.name === "project_manager") ||
-    members[0];
+    members[0] ||
+    activeRoles.find((r) => r.capabilities.includes("research")) ||
+    activeRoles[0];
 
   // Only add leader to members if not already present and we won't exceed maxAgents
   if (leader && !members.some((m) => m.id === leader!.id)) {
@@ -240,12 +252,10 @@ export async function selectAgentsForTask(
     if (maxAgents != null && maxAgents >= 1) {
       memberIds = memberIds.slice(0, maxAgents);
     }
-    const members = memberIds
-      .map((id) => roleMap.get(id))
-      .filter((r): r is AgentRole => r != null);
+    const members = memberIds.map((id) => roleMap.get(id)).filter((r): r is AgentRole => r != null);
     const leader = roleMap.get(llmResult.leaderId) || members[0];
-    if (members.length >= 2) {
-      return { members, leader };
+    if (members.length >= (maxAgents === 1 ? 1 : 2)) {
+      return { members, leader: members.includes(leader) ? leader : members[0] };
     }
   }
 

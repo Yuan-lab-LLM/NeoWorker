@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+vi.mock("../../utils/workspace-availability", () => ({ assertWorkspacePathAvailable: vi.fn() }));
+
 import { AgentDaemon } from "../daemon";
 
 describe("AgentDaemon follow-up permission overrides", () => {
@@ -178,6 +180,17 @@ describe("AgentDaemon follow-up permission overrides", () => {
     },
   );
 
+  it("updates the same skill's selected parameters and clears stale values on a new selection", () => {
+    const task = { id: "skill-params", agentConfig: { requestedSkillId: "writing-standard", requestedSkillParameters: { brand: "I", docLanguage: "中文" } } } as Any;
+    const daemonLike = Object.create(AgentDaemon.prototype) as Any;
+    const result = daemonLike.applyTaskFollowUpOverrides(task, { requestedSkillId: "writing-standard", requestedSkillParameters: { brand: "Q", docLanguage: "英文" } });
+    expect(result.changed).toBe(true);
+    expect(result.task.agentConfig.requestedSkillParameters).toEqual({ brand: "Q", docLanguage: "英文" });
+    expect(task.agentConfig.requestedSkillParameters.brand).toBe("I");
+    const next = daemonLike.applyTaskFollowUpOverrides(result.task, { requestedSkillId: "another-skill" });
+    expect(next.task.agentConfig.requestedSkillParameters).toBeUndefined();
+  });
+
   it("persists a skill selected for the next turn without changing the saved mode", () => {
     const task = {
       id: "task-skill-follow-up",
@@ -353,7 +366,7 @@ describe("AgentDaemon follow-up permission overrides", () => {
     vi.useRealTimers();
   });
 
-  it("queues a second follow-up while the first dispatch is entering the executor", async () => {
+  it.each(["skill", "model"])("queues a second %s selection while the first dispatch is entering the executor", async (selectionType) => {
     let releaseFirstDispatch: (() => void) | undefined;
     const firstDispatch = new Promise<void>((resolve) => {
       releaseFirstDispatch = resolve;
@@ -432,17 +445,38 @@ describe("AgentDaemon follow-up permission overrides", () => {
     } as Any;
     Object.setPrototypeOf(daemonLike, AgentDaemon.prototype);
 
+    const firstSelection = selectionType === "model" ? {
+      providerType: "deepseek", modelKey: "deepseek-reasoner",
+    } : {
+      requestedSkillId: "writing-standard",
+      requestedSkillParameters: { brand: "Q", docLanguage: "英文" },
+    };
+    const secondSelection = selectionType === "model" ? {
+      providerType: "openai", modelKey: "gpt-4.1-mini",
+    } : {
+      requestedSkillId: "writing-standard",
+      requestedSkillParameters: { brand: "I", docLanguage: "中文" },
+    };
     const firstPromise = AgentDaemon.prototype.sendMessage.call(
       daemonLike,
       task.id,
       "第一条追问",
+      undefined,
+      undefined,
+      selectionType === "model" ? { agentConfigOverride: firstSelection } : firstSelection,
     );
     await vi.waitFor(() => expect(executor.sendMessage).toHaveBeenCalledTimes(1));
+    expect(executor.sendMessage).toHaveBeenCalledWith(
+      "第一条追问", undefined, undefined, { agentConfigOverride: firstSelection },
+    );
 
     const secondResult = await AgentDaemon.prototype.sendMessage.call(
       daemonLike,
       task.id,
       "第二条追问",
+      undefined,
+      undefined,
+      selectionType === "model" ? { agentConfigOverride: secondSelection } : secondSelection,
     );
 
     expect(secondResult).toEqual({
@@ -456,8 +490,11 @@ describe("AgentDaemon follow-up permission overrides", () => {
       expect.objectContaining({
         message: "第二条追问",
         displayMessage: "第二条追问",
+        agentConfigOverride: secondSelection,
       }),
     ]);
+    // Queuing a later selection must not overwrite the running turn's config.
+    expect(executor.updateTaskAgentConfig).toHaveBeenCalledTimes(1);
 
     releaseFirstDispatch?.();
     await firstPromise;
@@ -489,6 +526,7 @@ describe("AgentDaemon follow-up permission overrides", () => {
       isRunning: true,
       drainAllPendingFollowUps: vi.fn().mockReturnValue([]),
       updateTaskAgentConfig: vi.fn(),
+      updateTaskAccessConfig: vi.fn(),
       updateWorkspace: vi.fn(),
     };
     let accessPolicy = {
@@ -586,10 +624,11 @@ describe("AgentDaemon follow-up permission overrides", () => {
         shellAccess: true,
       }),
     );
-    expect(executor.updateTaskAgentConfig).toHaveBeenCalledWith({
+    expect(executor.updateTaskAccessConfig).toHaveBeenCalledWith({
       permissionMode: "bypass_permissions",
       shellAccess: true,
     });
+    expect(executor.updateTaskAgentConfig).not.toHaveBeenCalled();
     expect(executor.updateWorkspace).toHaveBeenCalledWith(
       expect.objectContaining({
         permissions: expect.objectContaining({
@@ -612,7 +651,7 @@ describe("AgentDaemon follow-up permission overrides", () => {
     );
   });
 
-  it("applies automation agent config overrides without persisting them to the task", async () => {
+  it("queues automation overrides without persisting them or mutating the active turn", async () => {
     const task = {
       id: "650e8400-e29b-41d4-a716-446655440000",
       title: "Existing task",
@@ -689,11 +728,7 @@ describe("AgentDaemon follow-up permission overrides", () => {
       }),
     });
     expect(daemonLike.taskRepo.update).not.toHaveBeenCalled();
-    expect(executor.updateTaskAgentConfig).toHaveBeenCalledWith({
-      permissionMode: "default",
-      toolRestrictions: ["run_command"],
-      allowUserInput: false,
-    });
+    expect(executor.updateTaskAgentConfig).not.toHaveBeenCalled();
     expect(daemonLike.deferredUserFollowUps.get(task.id)).toEqual([
       expect.objectContaining({
         displayMessage: "Scheduled wake",

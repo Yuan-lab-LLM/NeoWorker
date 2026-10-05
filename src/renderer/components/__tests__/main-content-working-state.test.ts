@@ -78,7 +78,7 @@ describe("shouldCreateFreshTaskForSend", () => {
     ).toBe(true);
   });
 
-  it("starts a new session after a collaborative team task has finished", () => {
+  it("continues in the same session after a collaborative team task has finished", () => {
     expect(
       shouldCreateFreshTaskForSend({
         executionMode: "execute",
@@ -87,7 +87,7 @@ describe("shouldCreateFreshTaskForSend", () => {
         selectedTaskCollaborativeMode: true,
         selectedTaskStatus: "completed",
       }),
-    ).toBe(true);
+    ).toBe(false);
 
     expect(
       shouldCreateFreshTaskForSend({
@@ -2419,13 +2419,14 @@ describe("isTaskActivelyWorking", () => {
     const mainContentSource = readFileSync(mainContentPath, "utf8");
 
     expect(mainContentSource).toContain(
-      "const [verboseSteps, setVerboseSteps] = useState(true)",
+      "const [verboseSteps, setVerboseSteps] = useState(false)",
     );
     expect(mainContentSource).not.toContain(
       "settings.timelineVerbosityConfigured !== true",
     );
     expect(mainContentSource).toContain("const hasExplicitVerbosityChoice =");
-    expect(mainContentSource).toContain("timelineVerbosityConfigured: false");
+    expect(mainContentSource).toContain('setVerboseSteps(hasExplicitVerbosityChoice && settings.timelineVerbosity === "verbose")');
+    expect(mainContentSource).not.toContain('forceExpanded: isActive || actionBlockStatus === "needs_approval"');
     expect(mainContentSource).toContain("timelineVerbosityConfigured: true");
   });
 

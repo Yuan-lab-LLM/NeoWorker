@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-10-05
+
+### Added
+
+- Presentation Studio layout and template catalogs, source-figure extraction, native slide editing, and packaged-runtime verification.
+- Browser page translation and selection-aware reading actions, with expanded news categories, source images, and translation support.
+- Regression coverage for model-switch recovery, task queue isolation, team lifecycle state, artifact ownership, and connector launch environments.
+
+### Fixed
+
+- Honor the selected provider and model after a failed turn; replace stale Hermes connections while preserving the conversation, and apply queued model choices only when their turn starts.
+- Align team member names and history across session and conversation views; improve cancellation, completion reporting, and completed-team wrap-up controls during later queries.
+- Restrict final presentation delivery to verified outputs from the current task, preserving source material and preventing old uploads from appearing as newly generated deliverables.
+- Improve PPT preview rendering, source-preserving edits, native document generation, and Office artifact validation.
+- Restore connector startup environments and verify bundled connectors during packaging.
+- Localize automation confirmation dialogs and execution progress; keep sidebar branding consistent when collapsed.
+- Improve scheduled conversation reuse, run history, WeChat reconnect delivery, and news feed loading and presentation.
+
+### Changed
+
+- Bundle the updated Hermes host runtime and required presentation dependencies for desktop distribution.
+- Expand Windows installer checks for model configuration, document rendering, browser actions, news feeds, and scheduled tasks.
+
 ## [0.2.4] - 2026-09-28
 
 ### Added

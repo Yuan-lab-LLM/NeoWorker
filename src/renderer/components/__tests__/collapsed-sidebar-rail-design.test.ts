@@ -16,9 +16,7 @@ const styles = readFileSync(
 describe("collapsed sidebar rail design", () => {
   it("retains a compact icon rail instead of removing navigation", () => {
     expect(styles).toContain("--collapsed-sidebar-rail-width: 56px;");
-    expect(component).toContain(
-      'className="collapsed-sidebar-rail-navigation"',
-    );
+    expect(component).toContain("collapsed-sidebar-rail-navigation");
     expect(component).toContain('src="./neoworker-app-icon.png"');
   });
 
@@ -29,7 +27,9 @@ describe("collapsed sidebar rail design", () => {
   });
 
   it("uses automation as the single top-level destination for scheduled work and runs", () => {
-    expect(component).toContain('translate("sidebar.automations", "自动化")');
+    expect(component).toContain(
+      'translate("sidebar.automations", "Automation")',
+    );
     expect(component).not.toContain("sidebar.missionControl");
     expect(component).not.toContain("onOpenMissionControl");
   });

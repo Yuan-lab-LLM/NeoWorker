@@ -145,6 +145,7 @@ import {
   hasSubstantiveOutcomeEvidence,
 } from "./outcome-policy";
 import { extractExplicitOutputExtensions } from "./executor-completion-utils";
+import { buildDocumentTaskMessage } from "./document-translation-contract";
 import { buildCanonicalTaskIntentQuery } from "./task-intent-query";
 import {
   approvalIdempotency,
@@ -198,6 +199,7 @@ import { PermissionEngine } from "./runtime/PermissionEngine";
 import { createHermesPermissionHandler } from "./runtime/hermes-permission-bridge";
 import {
   buildHermesExternalRuntimeConfig,
+  inheritChildRuntimeConfig,
   resolveTaskRuntimeRoute,
   type TaskRuntimeRouteDecision,
 } from "./runtime/hermes-runtime-routing";
@@ -1021,6 +1023,7 @@ export class AgentDaemon extends EventEmitter {
       | "executionMode"
       | "taskDomain"
       | "requestedSkillId"
+      | "requestedSkillParameters"
       | "permissionMode"
       | "shellAccess"
       | "integrationMentions"
@@ -1079,12 +1082,17 @@ export class AgentDaemon extends EventEmitter {
       nextAgentConfig.taskDomain = options?.taskDomain;
       changed = true;
     }
-    if (
-      hasRequestedSkillId &&
-      nextAgentConfig.requestedSkillId !== options?.requestedSkillId
-    ) {
-      nextAgentConfig.requestedSkillId = options?.requestedSkillId;
-      changed = true;
+    if (hasRequestedSkillId) {
+      const nextParameters = options?.requestedSkillParameters;
+      if (
+        nextAgentConfig.requestedSkillId !== options?.requestedSkillId ||
+        JSON.stringify(nextAgentConfig.requestedSkillParameters) !== JSON.stringify(nextParameters)
+      ) {
+        nextAgentConfig.requestedSkillId = options?.requestedSkillId;
+        // Selecting a new invocation must never inherit another invocation's values.
+        nextAgentConfig.requestedSkillParameters = nextParameters;
+        changed = true;
+      }
     }
 
     if (
@@ -1555,7 +1563,7 @@ export class AgentDaemon extends EventEmitter {
     const derived = this.deriveTaskStrategy({
       title: task.title,
       prompt: task.prompt,
-      routingPrompt: task.rawPrompt || task.userPrompt || task.prompt,
+      routingPrompt: buildCanonicalTaskIntentQuery(task),
       agentConfig: task.agentConfig,
       lastProgressScore: task.lastProgressScore,
     });
@@ -3631,7 +3639,7 @@ export class AgentDaemon extends EventEmitter {
       permissionMode,
       shellAccess: Boolean(
         source.shellAccess &&
-        targetTask.agentConfig?.shellAccess &&
+        targetTask.agentConfig?.shellAccess !== false &&
         workspace?.permissions.shell,
       ),
       effectiveFromTurn: 1,
@@ -3831,6 +3839,11 @@ export class AgentDaemon extends EventEmitter {
     budgetCost?: number;
   }): Promise<Task> {
     const parent = this.taskRepo.findById(params.parentTaskId);
+    if (parent?.status === "cancelled") throw new Error("Cannot dispatch work for a cancelled parent task");
+    if (params.teamRunId && this.teamOrchestrator) {
+      const run = new AgentTeamRunRepository(this.dbManager.getDatabase()).findById(params.teamRunId);
+      if (!run || run.status !== "running") throw new Error("Cannot dispatch work for an inactive team run");
+    }
     const parentGatewayContext = parent?.agentConfig?.gatewayContext;
     const childGatewayContext = params.agentConfig?.gatewayContext;
     const parentAutonomousMode = parent?.agentConfig?.autonomousMode === true;
@@ -3988,9 +4001,7 @@ export class AgentDaemon extends EventEmitter {
     }
 
     let mergedAgentConfig: AgentConfig | undefined = (() => {
-      const next: AgentConfig = params.agentConfig
-        ? { ...params.agentConfig }
-        : {};
+      const next = inheritChildRuntimeConfig(parent?.agentConfig, params.agentConfig);
       if (mergedGatewayContext) {
         next.gatewayContext = mergedGatewayContext;
       }
@@ -4036,7 +4047,7 @@ export class AgentDaemon extends EventEmitter {
       title: params.title,
       prompt: params.prompt,
       rawPrompt: params.prompt,
-      userPrompt: params.userPrompt,
+      userPrompt: params.userPrompt ?? (params.teamRunId && parent ? buildDocumentTaskMessage(parent) : undefined),
       status: "pending",
       workspaceId: params.workspaceId,
       companyId: parent?.companyId,
@@ -4505,6 +4516,7 @@ export class AgentDaemon extends EventEmitter {
       activeRoles,
       requestedCount ?? undefined,
     );
+    if (this.taskRepo.findById(task.id)?.status === "cancelled") return true;
     const team = teamRepo.create({
       workspaceId: task.workspaceId,
       name: `Collab-${Date.now()}`,
@@ -4534,7 +4546,8 @@ export class AgentDaemon extends EventEmitter {
           workerRole: "researcher",
           index: subagentIndex,
         }),
-        description: task.prompt,
+        description: [members[i].displayName, members[i].description,
+          `Specialization: ${members[i].capabilities.join(", ")}. Focus on this responsibility; provide evidence, findings and unresolved requirements.`].filter(Boolean).join("\n"),
         ownerAgentRoleId: members[i].id,
         status: "todo",
         sortOrder: (i + 1) * 10,
@@ -4823,6 +4836,12 @@ export class AgentDaemon extends EventEmitter {
     if (!existing) {
       throw new Error(`Task ${taskId} not found`);
     }
+    // Close team scheduling before any executor cancellation can emit a
+    // terminal callback and start synthesis behind the user's Stop action.
+    if (this.teamOrchestrator && !existing.parentTaskId) {
+      const run = new AgentTeamRunRepository(this.dbManager.getDatabase()).findByRootTaskId(taskId);
+      if (run?.status === "running") await this.teamOrchestrator.cancelRun(run.id);
+    }
     // Don't clobber terminal states.
     if (
       existing.status === "completed" ||
@@ -4847,6 +4866,15 @@ export class AgentDaemon extends EventEmitter {
         cached.lastAccessed = Date.now();
         this.finishQueueSlot(taskId);
       }
+      // Stop can arrive after the terminal event was missed by a renderer.
+      // Acknowledge with the durable outcome instead of silently returning or
+      // overwriting an already delivered result with "cancelled".
+      this.logEvent(taskId, "task_status", {
+        status: existing.status,
+        terminalStatus: existing.terminalStatus,
+        completedAt: existing.completedAt,
+        reason: "stop_reconciled",
+      });
       return;
     }
     this.pendingContinuationTaskIds.delete(taskId);
@@ -11439,6 +11467,7 @@ export class AgentDaemon extends EventEmitter {
       prompt: existingTask.prompt,
       rawPrompt: existingTask.rawPrompt,
       userPrompt: existingTask.userPrompt,
+      parentTaskId: existingTask.parentTaskId,
     });
     // The terminal completion gate must only enforce formats the user explicitly
     // requested as outputs. Broad extension inference also sees source attachments
@@ -12685,6 +12714,7 @@ export class AgentDaemon extends EventEmitter {
       | "executionMode"
       | "taskDomain"
       | "requestedSkillId"
+      | "requestedSkillParameters"
       | "permissionMode"
       | "shellAccess"
       | "integrationMentions"
@@ -12715,6 +12745,18 @@ export class AgentDaemon extends EventEmitter {
           },
         }
       : options;
+    const turnAgentConfigOverride =
+      effectiveOptions?.agentConfigOverride || effectiveOptions?.requestedSkillId
+        ? {
+            ...effectiveOptions?.agentConfigOverride,
+            ...(effectiveOptions?.requestedSkillId
+              ? {
+                  requestedSkillId: effectiveOptions.requestedSkillId,
+                  requestedSkillParameters: effectiveOptions.requestedSkillParameters,
+                }
+              : {}),
+          }
+        : undefined;
     const overrideResult = this.applyTaskFollowUpOverrides(
       task,
       effectiveOptions,
@@ -12804,7 +12846,16 @@ export class AgentDaemon extends EventEmitter {
       });
     } else {
       executor = cached.executor;
-      executor.updateTaskAgentConfig(effectiveTask.agentConfig);
+      const turnInFlight = executor.isRunning ||
+        this.activeUserFollowUpDispatches?.has(taskId) ||
+        this.deferredUserFollowUpDrains?.has(taskId);
+      if (!turnInFlight) {
+        executor.updateTaskAgentConfig(effectiveTask.agentConfig);
+      } else if (accessPolicyChanged) {
+        // Permission changes take effect immediately; a queued model/skill
+        // choice must not replace the configuration of the running turn.
+        executor.updateTaskAccessConfig(roleAdjustedTask.agentConfig);
+      }
       // Update workspace to pick up permission changes (e.g. shell enabled)
       executor.updateWorkspace(effectiveWorkspace);
       cached.lastAccessed = Date.now();
@@ -12844,8 +12895,8 @@ export class AgentDaemon extends EventEmitter {
         ...(integrationMentions && integrationMentions.length > 0
           ? { integrationMentions }
           : {}),
-        ...(effectiveOptions?.agentConfigOverride
-          ? { agentConfigOverride: effectiveOptions.agentConfigOverride }
+        ...(turnAgentConfigOverride
+          ? { agentConfigOverride: turnAgentConfigOverride }
           : {}),
       };
       queuedBeforeSend.push(queuedFollowUp);
@@ -12881,7 +12932,7 @@ export class AgentDaemon extends EventEmitter {
         images,
         quotedAssistantMessage,
         {
-          agentConfigOverride: effectiveOptions?.agentConfigOverride,
+          agentConfigOverride: turnAgentConfigOverride,
         },
       );
     } finally {

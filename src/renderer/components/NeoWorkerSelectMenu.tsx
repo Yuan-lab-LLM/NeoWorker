@@ -18,6 +18,7 @@ export interface NeoWorkerSelectOption {
   label: string;
   description?: string;
   badge?: string;
+  icon?: ReactNode;
 }
 
 interface NeoWorkerSelectMenuProps {
@@ -225,9 +226,9 @@ export function NeoWorkerSelectMenu({
           );
         }}
       >
-        {icon ? (
+        {icon || selectedOption?.icon ? (
           <span className="neoworker-select-icon" aria-hidden="true">
-            {icon}
+            {icon || selectedOption?.icon}
           </span>
         ) : null}
         <span className="neoworker-select-value">
@@ -275,6 +276,7 @@ export function NeoWorkerSelectMenu({
                       closeMenu(true);
                     }}
                   >
+                    {option.icon ? <span className="neoworker-select-option-icon" aria-hidden="true">{option.icon}</span> : null}
                     <span className="neoworker-select-option-copy">
                       <span>
                         <strong>{option.label}</strong>

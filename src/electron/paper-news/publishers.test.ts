@@ -49,6 +49,16 @@ const cache = () => {
 afterEach(() => dirs.splice(0).forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
 
 describe("public publisher adapters", () => {
+  it.each([
+    '<media:thumbnail url="https://www.engadget.com/img/gallery/story.jpg" />',
+    '<media:content url="https://www.engadget.com/img/gallery/story.jpg" />',
+    '<enclosure type="image/jpeg" url="https://www.engadget.com/img/gallery/story.jpg" />',
+    '<link rel="enclosure" type="image/jpeg" href="https://www.engadget.com/img/gallery/story.jpg" />',
+    '<content:encoded><![CDATA[<p>Article</p><img data-src="https://www.engadget.com/img/gallery/story.jpg" />]]></content:encoded>',
+  ])("retains per-story RSS media: %s", media => {
+    const feed = fixture("engadget").replace("</item>", media + "</item>");
+    expect(parsePublisherNews("engadget", feed)[0].imageUrl).toBe("https://www.engadget.com/img/gallery/story.jpg");
+  });
   it("keeps MIT article media and excludes unrelated media hosts", () => {
     const image = '<media:content medium="image" url="https://news.mit.edu/sites/default/files/story.jpg"/>';
     const feed = fixture("mitai").replace("</item>", image + "</item>");
@@ -204,19 +214,19 @@ describe("publisher refresh integration", () => {
     const file = cache();
     const service = new PaperNewsService(file, fetcher, () => clock);
     const [first, joined] = await Promise.all([service.refresh(tech), service.refresh(tech)]);
-    expect(fetcher).toHaveBeenCalledTimes(5);
+    expect(fetcher).toHaveBeenCalledTimes(tech.length);
     expect(peak).toBe(4);
-    expect(first.items).toHaveLength(5);
-    expect(joined.items).toHaveLength(5);
+    expect(first.items).toHaveLength(tech.length);
+    expect(joined.items).toHaveLength(tech.length);
     service.setSaved(first.items.find((i) => i.source === "eetimes")!.id, true);
     fail = true;
     clock += 61000;
     const second = await service.refresh(tech);
-    expect(second.items).toHaveLength(5);
+    expect(second.items).toHaveLength(tech.length);
     expect(second.sources.qbitai.error).toBe("rateLimit");
-    expect(second.sources.chinatalk.error).toBeUndefined();
+    expect(second.sources.eetimes.error).toBeUndefined();
     const restored = new PaperNewsService(file, fetcher, () => clock).snapshot();
-    expect(restored.items).toHaveLength(5);
+    expect(restored.items).toHaveLength(tech.length);
     expect(restored.saved).toHaveLength(1);
     expect(restored.sources.qbitai.nextRetryAt).toBe(second.sources.qbitai.nextRetryAt);
   });

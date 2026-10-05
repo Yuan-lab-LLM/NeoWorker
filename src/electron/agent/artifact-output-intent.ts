@@ -48,11 +48,23 @@ export function parseArtifactOutputExtensions(prompt: string): string[] {
     const action = actions[index];
     const prefix = text.slice(Math.max(0, action.index! - 32), action.index);
     if (/(?:不要|无需|不必|不需要|不)\s*$|(?:^|[，,。;\s])别\s*$|\b(?:do\s+not|don'?t|never|without)\s*$/i.test(prefix)) continue;
+    // A negated list keeps its scope across conjunctions: "不要网上搜索、
+    // 补造数据或制作更多页面" does not ask for an HTML deliverable.
+    if (/(?:不要|无需|不必|不需要|别)[^，,。；;！？!?\n]*(?:、|或|和|及)\s*$/.test(prefix)) continue;
     const start = action.index! + action[0].length;
     const end = Math.min(actions[index + 1]?.index ?? text.length, start + 180);
     const target = withoutSourceReferences(text.slice(start, end)
       .split(/[。！？!?;；\n]|\.(?=\s|$)/)[0]);
-    const found = FORMATS.filter(([, pattern]) => pattern.test(target)).map(([extension]) => extension);
+    let found = FORMATS.filter(([, pattern]) => pattern.test(target)).map(([extension]) => extension);
+    // "PPT，每个页面…" describes slides, not a second web output. Explicit
+    // HTML/webpage or a named web screen still remains a separate requirement.
+    if (
+      found.includes(".html") &&
+      found.some((extension) => [".pptx", ".pdf", ".docx"].includes(extension)) &&
+      !/\b(?:html?|web\s*page)\b|网页|网站|(?:登录|注册|落地|登陆|购物|结账)页/i.test(target)
+    ) {
+      found = found.filter((extension) => extension !== ".html");
+    }
     found.forEach((extension) => extensions.add(extension));
     if (found.length === 0 && /台账|数据表/.test(target)) extensions.add(".xlsx");
     if (found.length === 0 && /\b(?:videos?|clips?|movie|footage)\b/i.test(target)) extensions.add(".mp4");

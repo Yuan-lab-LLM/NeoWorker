@@ -235,9 +235,21 @@ function formatReasonSummary(summary: string, type: ApprovalType): string {
         "This command needs confirmation before it can run.",
       );
     }
+    if (isDestructiveApproval(type)) {
+      return translate(
+        "approval.reason.destructiveAction",
+        "This is a destructive operation and requires your explicit confirmation.",
+      );
+    }
+    if (type === "data_export") {
+      return translate(
+        "approval.reason.dataExportConfirmation",
+        "This request may send data or credentials to an external service and needs your confirmation.",
+      );
+    }
     return translate(
-      "approval.reason.destructiveAction",
-      "This is a destructive operation and requires your explicit confirmation.",
+      "approval.reason.externalActionConfirmation",
+      "This action needs your confirmation because its external effects cannot be confirmed as read-only.",
     );
   }
   return summary;

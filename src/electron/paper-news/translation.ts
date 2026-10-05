@@ -1,3 +1,4 @@
+import { isNewsContentAllowed } from "../../shared/news-content-policy";
 import fs from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -42,12 +43,14 @@ export class NewsTranslations {
           originalSummary.length > 20000
         )
           continue;
+        if (!isNewsContentAllowed({ id, title: `${originalTitle} ${title}`, summary: `${originalSummary} ${summary}` })) continue;
         const value = { id, originalTitle, originalSummary, title, summary };
         this.cache.set(
           this.key({ id, title: originalTitle, summary: originalSummary }),
           value,
         );
       }
+      if (this.cache.size !== rows.length) this.persist();
     } catch {
       /* Missing or invalid optional translation cache: translate on demand. */
     }
@@ -57,6 +60,7 @@ export class NewsTranslations {
   }
   get(item: PaperNewsItem | undefined): Promise<NewsTranslationResult> {
     if (!item) return Promise.resolve({ error: "unavailable" });
+    if (!isNewsContentAllowed(item)) return Promise.resolve({ error: "excluded" });
     const key = this.key(item);
     const cached = this.cache.get(key);
     if (cached) return Promise.resolve({ translation: cached });
@@ -110,6 +114,7 @@ export class NewsTranslations {
         title: preserveNewsTitle(item) ? item.title : data.title.trim(),
         summary: item.summary.trim() ? data.summary.trim() : "",
       };
+      if (!isNewsContentAllowed({ ...item, title: translation.title, summary: translation.summary })) return { error: "excluded" };
       // Do not mark an unchanged English response as a successful Chinese translation.
       if (
         needsNewsTranslation({
@@ -122,22 +127,7 @@ export class NewsTranslations {
       this.cache.set(key, translation);
       while (this.cache.size > MAX_ENTRIES)
         this.cache.delete(this.cache.keys().next().value!);
-      try {
-        fs.mkdirSync(path.dirname(this.file), { recursive: true });
-        const temporary = `${this.file}.tmp`;
-        let serialized = JSON.stringify([...this.cache.values()]);
-        while (
-          Buffer.byteLength(serialized) > 8_000_000 &&
-          this.cache.size > 1
-        ) {
-          this.cache.delete(this.cache.keys().next().value!);
-          serialized = JSON.stringify([...this.cache.values()]);
-        }
-        fs.writeFileSync(temporary, serialized, { mode: 0o600 });
-        fs.renameSync(temporary, this.file);
-      } catch {
-        /* Keep the translation usable in memory if disk storage is unavailable. */
-      }
+      this.persist();
       return { translation };
     } catch (error) {
       return {
@@ -146,6 +136,24 @@ export class NewsTranslations {
             ? "model"
             : "failed",
       };
+    }
+  }
+  private persist(): void {
+    try {
+      fs.mkdirSync(path.dirname(this.file), { recursive: true });
+      const temporary = `${this.file}.tmp`;
+      let serialized = JSON.stringify([...this.cache.values()]);
+      while (
+        Buffer.byteLength(serialized) > 8_000_000 &&
+        this.cache.size > 1
+      ) {
+        this.cache.delete(this.cache.keys().next().value!);
+        serialized = JSON.stringify([...this.cache.values()]);
+      }
+      fs.writeFileSync(temporary, serialized, { mode: 0o600 });
+      fs.renameSync(temporary, this.file);
+    } catch {
+      /* Keep the translation usable in memory if disk storage is unavailable. */
     }
   }
 }

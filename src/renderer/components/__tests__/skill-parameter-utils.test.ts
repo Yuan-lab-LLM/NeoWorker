@@ -15,7 +15,7 @@ import {
   isFileSkillParameter,
   replaceSkillAttachmentPathsForComposer,
 } from "../SkillParameterModal";
-import { buildSlashSkillPrompt } from "../skill-parameter-utils";
+import { buildSlashSkillPrompt, buildSkillComposerSelection } from "../skill-parameter-utils";
 import type { CustomSkill } from "../../../shared/types";
 
 const testSkill: CustomSkill = {
@@ -391,6 +391,24 @@ describe("skill parameter renderer utilities", () => {
 
     expect(draft).toContain("文件：大模型Computer Use Agent调研.docx");
     expect(draft).not.toContain("路径：");
+  });
+
+  it("keeps selected values and original attachment paths separate from the concise visible draft", () => {
+    const skill = { ...testSkill, id: "server-product-doc-writing-standard", name: "服务器产品资料写作规范", description: "详细规范介绍".repeat(100), parameters: [
+      { name: "brand", type: "select", default: "I", options: ["I", "Q"] },
+      { name: "docLanguage", type: "select", default: "中文", options: ["中文", "英文"] },
+      { name: "path", type: "string" },
+    ] } as CustomSkill;
+    const values = { brand: "Q", docLanguage: "英文", path: "/真实目录/审校样本.docx", count: 0, strict: false };
+    const selection = buildSkillComposerSelection(skill, values, [{ parameterName: "path", path: values.path, name: "审校样本.docx", size: 12 }]);
+    expect(selection.context.parameters).toEqual(values);
+    expect(selection.draft).toContain("产品品牌：Q");
+    expect(selection.draft).toContain("文档语言：英文");
+    expect(selection.draft).toContain("审校样本.docx");
+    expect(selection.draft).not.toContain("/真实目录/");
+    expect(selection.draft).not.toContain("详细规范介绍");
+    expect(selection.draft).toContain("任务要求");
+    expect(selection.draft).not.toContain("/server-product-doc-writing-standard");
   });
 
   it("serializes slash prompts with structured parameter JSON", () => {

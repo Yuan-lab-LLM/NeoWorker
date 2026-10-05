@@ -7,6 +7,17 @@ import { _testUtils } from "../shell-session-manager";
 import { ShellSessionManager } from "../shell-session-manager";
 
 describe("shell-session-manager", () => {
+  it("finds Node from a Finder-launched persistent shell without terminal startup files", () => {
+    const environment = _testUtils.buildPersistentShellEnvironment("/bin/bash", false, "darwin", {
+      HOME: "/Users/test", PATH: "/usr/bin:/bin", LANG: "zh_CN.UTF-8",
+    });
+    const entries = environment.PATH!.split(":");
+    expect(entries).toContain("/usr/local/bin");
+    expect(entries).toContain("/opt/homebrew/bin");
+    expect(entries).toContain("/Users/test/.volta/bin");
+    expect(entries.slice(0, 2)).toEqual(["/usr/bin", "/bin"]);
+    expect(new Set(entries).size).toBe(entries.length);
+  });
   it("does not use interactive shell startup on Unix sessions", () => {
     if (process.platform === "win32") {
       expect(_testUtils.getShellArgs("powershell.exe")).toEqual([

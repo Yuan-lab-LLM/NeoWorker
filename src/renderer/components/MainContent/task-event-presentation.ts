@@ -665,10 +665,11 @@ export function shouldCreateFreshTaskForSend(params: {
   if (!params.selectedTaskId) return true;
   const selectedTaskIsChat = params.selectedTaskExecutionMode === "chat";
   if (
-    params.selectedTaskCollaborativeMode === true &&
-    isTerminalTaskStatus(params.selectedTaskStatus)
+    params.selectedTaskCollaborativeMode === true
   ) {
-    return true;
+    // A team conversation has the same follow-up semantics as an ordinary
+    // task. Starting a new root here loses the request behind “continue”.
+    return false;
   }
   if (
     params.executionMode === "chat" &&

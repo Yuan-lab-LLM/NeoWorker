@@ -6,6 +6,17 @@ import {
 } from "../office-artifact-input-normalizer";
 
 describe("Office artifact input normalizers", () => {
+  it("preserves all six parser stages when metrics is absent or empty", () => {
+    const timeline = ["文档转图片", "版面分析", "表格识别", "文字识别", "合并段落", "后处理"]
+      .map((value, i) => ({ label: String(i + 1), value, detail: `说明${i + 1}` }));
+    for (const metrics of [undefined, []]) {
+      const { slides } = normalizePresentationArtifactInput({ slides: [{
+        title: "EPAI-Parser 文档解析处理流程", slideType: "process", metrics, timeline,
+      }] });
+      expect(slides[0].data.items).toEqual(timeline);
+      expect(slides[0].content).toContain("6 · 后处理 · 说明6");
+    }
+  });
   it("consumes every supported rich presentation field without truncating rows", () => {
     const rows = Array.from({ length: 9 }, (_, index) => [index + 1, `Row ${index + 1}`]);
     const normalized = normalizePresentationArtifactInput({

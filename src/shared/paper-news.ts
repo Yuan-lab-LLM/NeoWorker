@@ -1,5 +1,7 @@
+import { isNewsContentAllowed } from "./news-content-policy";
 import { HF_HUB_SOURCES, isHfHubSource, type HfHubSort, type HfHubSource } from "./news-hub";
 import type { NewsPreferences } from "./news-preferences";
+import { canTranslateNewsItem } from "./news-translation";
 import { newsSourceEnabled } from "./news-preferences";
 import {
   NEWS_PUBLISHERS,
@@ -129,6 +131,10 @@ export function paperNewsPrompt(
   action: PaperNewsAction,
   language: string,
 ): string {
+  if (!isNewsContentAllowed(item)) throw new Error("该内容不在资讯展示范围内。");
+  if (action === "translate" && !canTranslateNewsItem(item, language)) {
+    throw new Error("这篇内容已是中文，无需翻译成中文。");
+  }
   const zh = language === "zh-CN";
   if (isNewsPublisher(item.source)) {
     const tasks = zh

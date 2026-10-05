@@ -6,7 +6,7 @@ on:
       expected_version:
         description: "Expected package version"
         required: true
-        default: "0.2.4"
+        default: "0.2.5"
 
 permissions:
   contents: read
@@ -66,6 +66,38 @@ jobs:
             throw "Expected version ${{ inputs.expected_version }}, found $version"
           }
 
+      - name: Verify internal model, news and browser regressions
+        run: >-
+          npx vitest --config config/vitest.config.ts run
+          src/electron/ipc/__tests__/provider-base-url.test.ts
+          src/electron/ipc/__tests__/llm-settings-save.test.ts
+          src/electron/agent/llm/__tests__/openai-compatible-provider-errors.test.ts
+          src/electron/agent/llm/__tests__/provider-factory-custom-config.test.ts
+          src/electron/paper-news/
+          src/shared/news-images.test.ts
+          src/renderer/components/__tests__/paper-news-behavior.test.ts
+          src/renderer/components/__tests__/news-gallery-notes.test.ts
+          src/renderer/components/__tests__/browser-reading.test.ts
+          src/renderer/components/__tests__/browser-selection-probe.test.ts
+          src/renderer/components/__tests__/browser-frame-navigation.test.ts
+          src/electron/ipc/paper-news-handlers.test.ts
+          --maxWorkers=1
+
+      - name: Verify Hermes host launcher contract
+        run: python scripts/qa/test_hermes_host_launcher.py
+
+      - name: Verify scheduled conversation reuse and WeChat reconnect delivery
+        run: >-
+          npx vitest --config config/vitest.config.ts run
+          src/electron/cron/
+          src/electron/gateway/__tests__/weixin.test.ts
+          src/electron/gateway/__tests__/weixin-context.test.ts
+          src/electron/database/__tests__/TaskRepository.findAll.test.ts
+          src/renderer/__tests__/sidebar-helpers.test.ts
+          src/renderer/utils/automation-runs.test.ts
+          src/renderer/utils/automation-delivery.test.ts
+          --maxWorkers=1
+
       - name: Test source-preserving PPT content editing
         run: npx vitest --config config/vitest.config.ts run src/electron/agent/__tests__/presentation-edit-policy.test.ts src/electron/agent/tools/__tests__/use-skill.test.ts src/electron/agent/tools/__tests__/skill-tools-artifact-registration.test.ts src/electron/agent/tools/__tests__/office-artifact-input-normalizer.test.ts --maxWorkers=1
 
@@ -74,6 +106,21 @@ jobs:
           python scripts/qa/test_presentation_template_edit.py
           node scripts/qa/presentation-content-edit.mjs
           node scripts/qa/presentation-template-fill.mjs
+
+      - name: Prepare OfficeCLI for document regression tests
+        run: npm run setup:officecli -- --platform win32 --arch x64
+
+      - name: Translation timeout and follow-up completion regressions
+        run: npx vitest --config config/vitest.config.ts run src/electron/agent/__tests__/executor-tool-timeouts.test.ts src/electron/agent/__tests__/executor-finalization-state.test.ts src/electron/agent/__tests__/daemon-complete-task.test.ts src/electron/agent/tools/__tests__/document-tools.test.ts --maxWorkers=1
+
+      - name: Build Electron for document rendering checks
+        run: npm run build:electron
+
+      - name: Verify PPT translation rendering on Windows
+        run: node scripts/qa/office-render-smoke.cjs
+
+      - name: Verify translation layout regressions on Windows
+        run: node node_modules/electron/cli.js scripts/qa/translation-text-fit-fixtures.cjs
 
       - name: Package Windows installer
         run: npm run package:win:x64
@@ -92,19 +139,32 @@ jobs:
       - name: Verify public search and source reading on Windows
         run: node scripts/qa/public-search-smoke.cjs
 
-      - name: Translation timeout and follow-up completion regressions
-        run: npx vitest --config config/vitest.config.ts run src/electron/agent/__tests__/executor-tool-timeouts.test.ts src/electron/agent/__tests__/executor-finalization-state.test.ts src/electron/agent/__tests__/daemon-complete-task.test.ts src/electron/agent/tools/__tests__/document-tools.test.ts --maxWorkers=1
-      - name: Verify PPT translation rendering on Windows
-        run: node scripts/qa/office-render-smoke.cjs
-
-      - name: Verify translation layout regressions on Windows
-        run: node node_modules/electron/cli.js scripts/qa/translation-text-fit-fixtures.cjs
-
       - name: Verify packaged app contains no API keys
         run: npm run package:secrets:verify
 
       - name: Smoke Windows installer
         run: npm run package:win:smoke -- --expected-version=${{ inputs.expected_version }}
+
+      - name: Record installer provenance and checksum
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs'), crypto = require('node:crypto');
+          const {execFileSync} = require('node:child_process');
+          const version = require('./package.json').version;
+          const artifact = `NeoWorker-${version}-windows-x64-setup.exe`;
+          const data = fs.readFileSync(`release/${artifact}`);
+          const sha256 = crypto.createHash('sha256').update(data).digest('hex');
+          const report = {
+            version, artifact, bytes: data.length, sha256,
+            platform: process.platform, arch: process.arch,
+            sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], {encoding: 'utf8'}).trim(),
+            builtAt: new Date().toISOString(), run: process.env.GITHUB_RUN_ID,
+            validation: {regressions: 'passed', packagedSecretScan: 'passed', installLaunchUninstall: 'passed'}
+          };
+          fs.writeFileSync('release/build-windows-x64.json', JSON.stringify(report, null, 2)+'\n');
+          fs.writeFileSync(`release/${artifact}.sha256`, sha256+'  '+artifact+'\n');
+          NODE
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v6
@@ -115,4 +175,5 @@ jobs:
             release/*.blockmap
             release/*.yml
             release/*.sha256
+            release/build-windows-x64.json
           if-no-files-found: error

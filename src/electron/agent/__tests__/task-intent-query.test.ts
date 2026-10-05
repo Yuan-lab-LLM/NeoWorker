@@ -10,6 +10,22 @@ import {
 } from "../task-intent-query";
 
 describe("task intent routing query", () => {
+  it("keeps team findings and offered PPT work out of the user request", () => {
+    const query = buildCanonicalTaskIntentQuery({
+      parentTaskId: "epai-root", title: "Synthesis",
+      userPrompt: "帮我分析一下EPAI平台的竞争形式",
+      rawPrompt: "Synthesize these findings. Member: 如需，我可以生成一份竞争形势汇报 PPT。",
+    });
+    expect(query).toBe("帮我分析一下EPAI平台的竞争形式");
+    expect(parseArtifactOutputExtensions(query)).toEqual([]);
+  });
+  it("retains a real user PPT request while ignoring a member's suggested Word output", () => {
+    const query = buildCanonicalTaskIntentQuery({
+      parentTaskId: "epai-root", userPrompt: "分析EPAI并生成PPT",
+      rawPrompt: "Member suggests: 生成 Word 报告。",
+    });
+    expect(parseArtifactOutputExtensions(query)).toEqual([".pptx"]);
+  });
   it.each([
     ["帮我基于PDF内容，写一个PPT，参考第二个PPT模版", [".pptx"]],
     ["不要生成PPT，只做Word报告", [".docx"]],

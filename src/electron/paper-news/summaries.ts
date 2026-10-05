@@ -1,3 +1,4 @@
+import { isNewsContentAllowed } from "../../shared/news-content-policy";
 import { DOMParser } from "@xmldom/xmldom";
 import type { PaperNewsItem } from "../../shared/paper-news";
 import type { NewsSummaryResult } from "../../shared/news-summary";
@@ -74,6 +75,7 @@ export class NewsSummaries {
   ) {}
   get(item: PaperNewsItem | undefined): Promise<NewsSummaryResult> {
     if (!item || !isNewsPublisher(item.source)) return Promise.resolve({ error: "unavailable" });
+    if (!isNewsContentAllowed(item)) return Promise.resolve({ error: "excluded" });
     if (item.summary.trim())
       return Promise.resolve({ summary: item.summary, kind: item.summaryKind || "description" });
     const url = publisherArticleUrl(item.source, item.url);
@@ -145,10 +147,11 @@ export class NewsSummaries {
     } finally {
       clearTimeout(timeout);
     }
+    if ("summary" in result && !isNewsContentAllowed({ ...item, summary: result.summary })) result = { error: "excluded" };
     // Host-wide backoff avoids hammering a publisher across different cards.
     this.cooldown.set(host, {
       until: this.now() + cooldownMs,
-      result: "error" in result ? result : { error: "busy" },
+      result: "error" in result && result.error !== "excluded" ? result : { error: "busy" },
     });
     return result;
   }

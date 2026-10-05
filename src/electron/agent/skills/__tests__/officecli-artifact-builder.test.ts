@@ -28,6 +28,19 @@ function batchCommands(calls: Array<{ args: string[]; input?: string }>): Array<
 }
 
 describe("OfficeCliArtifactBuilder", () => {
+  it("renders the sixth process step and refuses to silently truncate longer flows", async () => {
+    const { invoker, calls } = createRecordingInvoker();
+    const builder = new OfficeCliArtifactBuilder(invoker);
+    const items = Array.from({ length: 6 }, (_, i) => ({ label: `阶段${i + 1}`, value: `内容${i + 1}` }));
+    const cover = { title: "封面", slideType: "cover" };
+    await builder.createPresentation("/tmp/parser.pptx", [cover, { title: "解析流程", slideType: "process", data: { items } }]);
+    const serialized = JSON.stringify(batchCommands(calls));
+    expect(serialized).toContain("Step detail 6");
+    expect(serialized).toContain("阶段6");
+    await expect(builder.createPresentation("/tmp/too-many.pptx", [cover, {
+      title: "过长流程", slideType: "process", data: { items: [...items, items[0]] },
+    }])).rejects.toThrow(/Split the slide without removing steps/);
+  });
   it("creates DOCX content through OfficeCLI with polished CJK typography", async () => {
     const { invoker, calls } = createRecordingInvoker();
     const builder = new OfficeCliArtifactBuilder(invoker);

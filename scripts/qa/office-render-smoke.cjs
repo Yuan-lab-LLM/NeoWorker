@@ -25,6 +25,7 @@ if (!process.versions.electron) {
   const { PNG } = require("pngjs");
   const { inspectOfficeTranslation, applyOfficeTranslation, verifyOfficeTranslationFidelity } = require("../../dist/electron/electron/documents/office-translation.js");
   const { fitPptxTranslation } = require("../../dist/electron/electron/documents/pptx-translation-layout.js");
+  const { preparePptxRenderInput } = require("../../dist/electron/electron/utils/pptx-render-input.js");
   const { resolveBundledOfficeCliExecutable } = require("../../dist/electron/electron/utils/officecli-runtime.js");
   const root = process.env.NEOWORKER_OFFICE_QA_ROOT;
   app.setPath("userData", path.join(root, "profile"));
@@ -62,7 +63,11 @@ if (!process.versions.electron) {
       if (kind === "transparent-preset") {
         const zip = await JSZip.loadAsync(source);
         const xml = await zip.file("ppt/slides/slide1.xml").async("text");
-        zip.file("ppt/slides/slide1.xml", xml.replace(/(<a:rPr[^>]*>)/, '$1<a:solidFill><a:prstClr val="white"><a:alpha val="50000"/></a:prstClr></a:solidFill>'));
+        const tinted = xml.replace(/(<a:rPr\b[^>]*>)([\s\S]*?)(<\/a:rPr>)/, (_match, open, body, close) =>
+          open + body.replace(/<a:solidFill>[\s\S]*?<\/a:solidFill>/g, "")
+          + '<a:solidFill><a:prstClr val="white"><a:alpha val="50000"/></a:prstClr></a:solidFill>' + close);
+        assert.notEqual(tinted, xml, "Transparent color fixture was not inserted");
+        zip.file("ppt/slides/slide1.xml", tinted);
         source = await zip.generateAsync({ type: "nodebuffer" });
       }
       if (kind === "inline-math") {
@@ -73,26 +78,27 @@ if (!process.versions.electron) {
         source = await zip.generateAsync({ type: "nodebuffer" });
       }
       if (large) assert(source.length > 24 * 1024 * 1024, `Large fixture too small: ${source.length}`);
-      const input = path.join(binDir, "原文件 candidate.pptx");
-      const html = path.join(binDir, "候选预览.html");
+      // Give each fixture its own path so a renderer cache cannot reuse a
+      // previous deck. Retain the untouched input for preview/fidelity checks.
+      const fixtureDir = path.join(binDir, kind);
+      fs.mkdirSync(fixtureDir, { recursive: true });
+      const input = path.join(fixtureDir, "原文件 candidate.pptx");
+      const renderInput = path.join(fixtureDir, "渲染副本.pptx");
+      const html = path.join(fixtureDir, "候选预览.html");
       fs.writeFileSync(input, source);
+      // Both production preview and translation measurement normalize a
+      // disposable render copy. Raw OfficeCLI 1.0.143 still rejects some
+      // transparent preset colors on Windows; exercise the actual app path.
+      fs.writeFileSync(renderInput, await preparePptxRenderInput(source));
       const start = Date.now();
-      const render = spawnSync(copiedExe, ["view", input, "html", "-o", html, "--json"], {
+      const render = spawnSync(copiedExe, ["view", renderInput, "html", "-o", html, "--json"], {
         env: { ...process.env, OFFICECLI_NO_AUTO_RESIDENT: "1" }, encoding: "utf8", timeout: 60_000, windowsHide: true,
       });
       console.log(JSON.stringify({ stage: "view-html", kind, bytes: source.length, ms: Date.now() - start,
         status: render.status, signal: render.signal, error: render.error?.message, stdout: render.stdout, stderr: render.stderr }));
-      if (kind === "transparent-preset") {
-        // The renderer now handles the transparent preset correctly. Keep
-        // this fixture as a regression check for a successful preview rather
-        // than preserving the old failure that caused the Windows release
-        // gate to reject a valid build.
-        assert.equal(render.status, 0, "OfficeCLI view html failed for transparent preset");
-        assert(fs.statSync(html).size > 0);
-      } else {
-        assert.equal(render.status, 0, "OfficeCLI view html failed");
-        assert(fs.statSync(html).size > 0);
-      }
+      assert.equal(render.status, 0, `OfficeCLI view html failed for ${kind}`);
+      assert(fs.readFileSync(html, "utf8").includes("翻译检查"), "Rendered HTML omitted fixture text");
+      assert.deepEqual(fs.readFileSync(input), source, "Rendering changed the source document");
       if (["transparent-preset", "multi-slide-host"].includes(kind)) {
         const { PptxPreviewService } = require("../../dist/electron/electron/utils/PptxPreviewService.js");
         const { execFile } = require("node:child_process");
@@ -136,7 +142,7 @@ if (!process.versions.electron) {
         const { DocumentTools } = require("../../dist/electron/electron/agent/tools/document-tools.js");
         const { NeoWorkerToolHost } = require("../../dist/electron/electron/agent/runtime/tool-host-protocol.js");
         const { ToolExecutionCoordinator } = require("../../dist/electron/electron/agent/runtime/ToolExecutionCoordinator.js");
-        const doc = new DocumentTools(binDir, "host-qa", () => {});
+        const doc = new DocumentTools(fixtureDir, "host-qa", () => {});
         let progress = await doc.officeTranslation({ action: "inspect", sourcePath: path.basename(input), targetLanguage: "English" });
         const translationId = progress.translationId;
         while (progress.remaining) progress = await doc.officeTranslation({ action: "stage", translationId,
@@ -166,7 +172,7 @@ if (!process.versions.electron) {
         assert.equal(result.result.success, true, JSON.stringify(result.result));
         assert.equal(result.toolHostResponse.status, "success");
         assert(events.some(event => event.payload.metric === "tool_lifecycle" && event.payload.status === "request" && event.payload.timeoutMs === 900_000));
-        assert(fs.existsSync(path.join(binDir, "translated-host.pptx")));
+        assert(fs.existsSync(path.join(fixtureDir, "translated-host.pptx")));
         console.log(JSON.stringify({ stage: "translation-host", slides: 45, checked: result.result.textFit.checkedShapes, ms: Date.now() - start, timeout }));
         continue;
       }

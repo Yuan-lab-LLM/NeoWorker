@@ -1195,10 +1195,13 @@ export function getLocalizedSkillText(
     };
   }
 
-  // External and workspace skills are user-authored content. Their names are
+  const localized =
+    ZH_SKILL_TEXT_BY_ID[skill.id] || ZH_SKILL_TEXT_BY_NAME[skill.name];
+  // External, workspace and unknown managed skills are user-authored content. Their names are
   // identifiers chosen by the user or by the imported SKILL.md, so replacing
   // an unknown one with a generic localized workflow label is misleading.
-  if (skill.source === "external" || skill.source === "workspace") {
+  if (skill.source === "external" || skill.source === "workspace" ||
+      (skill.source === "managed" && !localized)) {
     return {
       name: normalizeInternalToolNamesForDisplay(skill.name, language),
       description: normalizeInternalToolNamesForDisplay(
@@ -1213,8 +1216,6 @@ export function getLocalizedSkillText(
     };
   }
 
-  const localized =
-    ZH_SKILL_TEXT_BY_ID[skill.id] || ZH_SKILL_TEXT_BY_NAME[skill.name];
   if (!localized) return getPluginSkillFallback(skill, language);
   return {
     name: normalizeInternalToolNamesForDisplay(localized.name, language),
@@ -1311,7 +1312,6 @@ export function buildLocalizedSkillComposerPrompt(
   );
   const sections = [
     `请使用“${localized.name}”技能完成以下任务。`,
-    localized.description ? `目标：${localized.description}` : "",
     parameterLines.length > 0
       ? `已选择的参数：\n${parameterLines.join("\n")}`
       : "",
@@ -1354,6 +1354,10 @@ export function getLocalizedSkillNameFromIdentifier(value: string): string {
 }
 
 const ZH_PARAMETER_NAMES: Record<string, string> = {
+  template_path: "模板文件",
+  brand: "产品品牌",
+  docType: "资料类型",
+  docLanguage: "文档语言",
   action: "操作",
   apiKey: "API Key",
   amount: "数量",
@@ -1671,6 +1675,7 @@ export function getLocalizedSkillParameterText(
     description:
       skillSpecific?.description ||
       ZH_PARAMETER_DESCRIPTIONS[parameter.description || ""] ||
+      (/[\u4e00-\u9fff]/.test(parameter.description || "") ? parameter.description : "") ||
       getDefaultChineseParameterDescription(parameter, localizedName),
     options: parameter.options?.map(
       (option) =>

@@ -107,6 +107,7 @@ vm-bundle/
 # Connector checks may emit these source-adjacent JavaScript files.
 /connectors/google-workspace-mcp/src/index.js
 /connectors/maps-mcp/src/index.js
+/pptx-translation-layout.js
 
 # Temporary files
 /.tmp/

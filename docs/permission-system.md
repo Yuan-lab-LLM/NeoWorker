@@ -126,7 +126,8 @@ service, even if the tool looks read-like from the user perspective.
 Current examples:
 
 - `http_request` with a mutating method or request payload is treated as `data_export`
-- plain `http_request` only stays in `network_access` when it is a simple `GET` or `HEAD` with no body and no custom headers
+- bodyless `http_request` `GET`/`HEAD` requests stay in `network_access` with ordinary read headers (`Accept`, `Accept-Language`, `User-Agent`) or an HTTP(S) origin-only `Referer`/`Origin`. For example, Sina quotes require `Referer: https://finance.sina.com.cn/`; this is a network read, not an export.
+- authorization, cookies, other custom headers, URL credentials, and referring URLs containing paths, queries, or fragments remain export-scoped. The tool registry and permission engine share this classification.
 - `analyze_image` is treated as export because image bytes are sent to an external vision model
 - `read_pdf_visual` is treated as export because PDF page images are sent to an external vision model
 
@@ -142,6 +143,10 @@ This is separate from the coarse workspace `network` capability:
 
 The session-level "Approve all" convenience toggle also stays narrow. It can auto-approve
 `run_command` and `network_access`, but not `data_export`.
+
+Scheduled public-data reads use the same classification as interactive reads. They do not need
+a remembered grant from a previous run, while explicit network restrictions still apply.
+Delivery to the channel configured on the scheduled job remains the scheduler's responsibility.
 
 ## Denial Fallback
 

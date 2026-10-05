@@ -2,13 +2,124 @@ import { describe, expect, it, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
-import { PaperNewsCovers, boundedCoverBytes, newsImageUrl, newsPageImages, paperNewsCoverKey, publisherImageUrl, publisherArticleImages } from "./covers";
+import { createHash } from "node:crypto";
+import { PaperNewsCovers, boundedCoverBytes, newsImageUrl, newsPageImages, newsStructuredImages, paperNewsCoverKey, publisherImageUrl, publisherArticleImages, githubReadmeImages } from "./covers";
 import type { PaperNewsItem } from "../../shared/paper-news";
 const item = (suffix = "one"): PaperNewsItem => ({ id: `github:owner/${suffix}`, source: "github", title: suffix, summary: "Test", url: `https://github.com/owner/${suffix}`, date: "2026-09-24", authors: [], tags: [], score: 0, matchedTopics: [] });
 const image = vi.fn(async () => Buffer.from("jpeg"));
 const pdf = vi.fn(async () => Buffer.from("page"));
 async function withCache(run: (dir: string) => Promise<void>) { const dir = await fs.mkdtemp(path.join(os.tmpdir(), "news-cover-test-")); try { await run(dir); } finally { await fs.rm(dir, { recursive: true, force: true }); } }
 describe("dynamic news covers", () => {
+  it("retries GitHub misses persisted by the old metadata-only resolver", async () => withCache(async dir => {
+    const record = item();
+    const oldKey = createHash("sha256").update(JSON.stringify([7, record.id, record.url, record.pdfUrl, record.imageUrl, record.date, record.title])).digest("hex");
+    await fs.writeFile(path.join(dir, `${oldKey}.json`), JSON.stringify({ expires: Date.now() + 86_400_000, cover: null }));
+    const photo = "https://raw.githubusercontent.com/owner/one/main/screenshot.png";
+    const fetcher = vi.fn(async (url: string) => url === record.url
+      ? new Response(`<article class="markdown-body"><img src="${photo}"></article>`)
+      : new Response("image", { headers: { "content-type": "image/png" } }));
+    expect((await new PaperNewsCovers(dir, fetcher, image, pdf).get(record))?.sourceUrl).toBe(photo);
+  }));
+  it("extracts actual README media while excluding page chrome and Camo-encoded badges", () => {
+    const html = `<img src="https://raw.githubusercontent.com/o/r/main/unrelated.png">
+      <article class="markdown-body entry-content">
+        <img src="https://camo.githubusercontent.com/hash/encoded-badge" data-canonical-src="https://img.shields.io/npm/v/repo" alt="npm version">
+        <img src="https://camo.githubusercontent.com/hash/123" data-canonical-src="https://img.shields.io/npm/dm/repo" alt="npm downloads">
+        <img src="/owner/one/raw/main/project-logo-motion.webp">
+        <img src="/owner/one/raw/refs/heads/main/docs/screenshot.png" width="900">
+        <img src="https://camo.githubusercontent.com/hash/hero" data-canonical-src="https://project.example/hero.png" width="100%">
+        <img src="https://raw.githubusercontent.com/o/r/main/icon.png" width="32">
+        <img src="https://127.0.0.1/private.png"><img>
+      </article>`;
+    expect(githubReadmeImages(html, item().url)).toEqual([
+      "https://raw.githubusercontent.com/owner/one/refs/heads/main/docs/screenshot.png",
+      "https://camo.githubusercontent.com/hash/hero",
+    ]);
+    expect(githubReadmeImages(html, "https://github.com.evil.test/o/r")).toEqual([]);
+  });
+  it("uses README project images before a rate-limited generated GitHub preview", async () => withCache(async dir => {
+    const photo = "https://raw.githubusercontent.com/owner/one/main/screenshot.png";
+    const fetcher = vi.fn(async (url: string) => {
+      if (url === item().url) return new Response(`<meta property="og:image" content="https://opengraph.githubassets.com/hash/owner/one"><article class="markdown-body"><img src="${photo}"></article>`);
+      if (url === photo) return new Response("screenshot", { headers: { "content-type": "image/png" } });
+      return new Response("rate limited", { status: 429 });
+    });
+    expect((await new PaperNewsCovers(dir, fetcher, image, pdf).get(item()))?.sourceUrl).toBe(photo);
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([item().url, photo]);
+  }));
+  it("retains custom social covers and recovers with the official preview if README media fails", async () => withCache(async dir => {
+    const custom = "https://repository-images.githubusercontent.com/project/custom.png";
+    const generated = "https://opengraph.githubassets.com/hash/owner/one";
+    const readme = "https://raw.githubusercontent.com/owner/one/main/screenshot.png";
+    const fetcher = vi.fn(async (url: string) => {
+      if (url === item().url) return new Response(`<meta property="og:image" content="${custom}"><meta name="twitter:image" content="${generated}"><article class="markdown-body"><img src="${readme}"></article>`);
+      if (url === generated) return new Response("preview", { headers: { "content-type": "image/png" } });
+      return new Response("missing", { status: 404 });
+    });
+    expect((await new PaperNewsCovers(dir, fetcher, image, pdf).get(item()))?.sourceUrl).toBe(generated);
+    expect(fetcher.mock.calls.map(([url]) => url)).toEqual([item().url, custom, readme, generated]);
+  }));
+  it("loads distinct WallstreetCN original covers from its current public image CDN", async () => withCache(async dir => {
+    const photos = [
+      "https://wpimg-wscn.awtmt.com/bbdc7052-09cc-49db-8fda-d4ab971dd4d9.jpeg",
+      "https://wpimg-wscn.awtmt.com/8ed4e5d5-ed67-4966-917d-d0474c9d6996.jpeg",
+    ];
+    const stories = ["3782820", "3782822"].map(id => ({ ...item(id), source: "wallstreetcn" as const, url: `https://wallstreetcn.com/articles/${id}` }));
+    const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+      const index = stories.findIndex(story => story.url === url);
+      if (index >= 0) return new Response(`<meta property="og:image" content="${photos[index]}">`);
+      expect((init?.headers as Record<string, string>).Referer).toBe("https://wallstreetcn.com/");
+      return new Response("original article image", { headers: { "content-type": "image/jpeg" } });
+    });
+    const resolver = new PaperNewsCovers(dir, fetcher, image, pdf);
+    expect((await Promise.all(stories.map(story => resolver.get(story)))).map(cover => cover?.sourceUrl)).toEqual(photos);
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(publisherImageUrl("wallstreetcn", "https://wpimg-wscn.awtmt.com.evil.test/image.jpg")).toBeUndefined();
+    expect(publisherImageUrl("wallstreetcn", "https://unrelated.awtmt.com/image.jpg")).toBeUndefined();
+    expect(publisherImageUrl("engadget", photos[0])).toBeUndefined();
+  }));
+  it("follows only validated publisher redirects and stops private-network destinations before fetching", async () => withCache(async dir => {
+    const story = { ...item(), source: "engadget" as const, url: "https://www.engadget.com/story" };
+    const photo = "https://www.engadget.com/img/gallery/story.jpg";
+    const fetcher = vi.fn(async (url: string) => {
+      if (url === story.url) return new Response(null, { status: 301, headers: { location: "/story/" } });
+      if (url.endsWith("/story/")) return new Response(`<meta property="og:image" content="${photo}">`);
+      return new Response("image", { headers: { "content-type": "image/jpeg" } });
+    });
+    expect((await new PaperNewsCovers(dir, fetcher, image, pdf).get(story))?.sourceUrl).toBe(photo);
+    const redirect = vi.fn(async () => new Response(null, { status: 302, headers: { location: "https://127.0.0.1/private.jpg" } }));
+    expect(await new PaperNewsCovers(dir, redirect, image, pdf).get({ ...story, id: "engadget:denied" })).toBeNull();
+    expect(redirect).toHaveBeenCalledOnce();
+  }));
+  it("retrieves distinct ScienceDaily images from each article instead of shared category art", async () => withCache(async dir => {
+    const urls = ["radiograph-x-ray-back-bone-spinal-pain", "infected-female-deer-tick-human-skin"];
+    const stories = urls.map((slug, i) => ({ ...item(String(i)), source: "sciencedailyhealth" as const, url: `https://www.sciencedaily.com/releases/2026/09/story${i}.htm`, title: slug }));
+    const fetcher = vi.fn(async (url: string) => {
+      const i = stories.findIndex(story => story.url === url);
+      return i >= 0 ? new Response(`<meta property="og:image" content="https://www.sciencedaily.com/images/1920/${urls[i]}.webp" />`)
+        : new Response("image", { headers: { "content-type": "image/webp" } });
+    });
+    const covers = new PaperNewsCovers(dir, fetcher, image, pdf);
+    const results = await Promise.all(stories.map(story => covers.get(story)));
+    expect(results.map(cover => cover?.sourceUrl)).toEqual(urls.map(slug => `https://www.sciencedaily.com/images/1920/${slug}.webp`));
+    expect(fetcher).toHaveBeenCalledTimes(4);
+  }));
+  it("accepts maintained publisher CDNs but rejects unrelated publishers, local URLs and logos", () => {
+    expect(publisherImageUrl("zapier", "https://images.ctfassets.net/space/post/photo.jpg")).toBeTruthy();
+    expect(publisherImageUrl("learningresearch", "http://static1.squarespace.com/static/post/photo.jpg")).toBe("https://static1.squarespace.com/static/post/photo.jpg");
+    for (const candidate of ["https://127.0.0.1/image.jpg", "https://www.engadget.com.evil.test/photo.jpg", "https://www.sciencedaily.com/images/1920/photo.webp", "https://www.engadget.com/images/default-social.jpg"])
+      expect(publisherImageUrl("engadget", candidate)).toBeUndefined();
+  });
+  it("uses article structured images and ignores organization logos and related stories", () => {
+    const base = "https://www.engadget.com/story/";
+    const raw = `<script type="application/ld+json">${JSON.stringify({ "@graph": [
+      { "@type": "Organization", image: "https://www.engadget.com/brand.jpg" },
+      { "@type": "NewsArticle", image: { "@type": "ImageObject", url: "https://www.engadget.com/img/gallery/story/intro.jpg" } },
+    ] })}</script>`;
+    expect(newsStructuredImages(raw, base)).toEqual(["https://www.engadget.com/img/gallery/story/intro.jpg"]);
+    const body = '<article><div class="related"><img src="/img/gallery/other.jpg" /></div><img src="data:image/gif;base64,AA" srcset="/img/gallery/small.jpg 320w, /img/gallery/story.jpg 1200w" /></article>';
+    expect(publisherArticleImages("engadget", body, base)).toEqual(["https://www.engadget.com/img/gallery/story.jpg"]);
+  });
   it("loads Qbit article images with a publisher origin referer", async () => withCache(async dir => {
     const story = { ...item(), source: "qbitai" as const, url: "https://www.qbitai.com/2026/09/123.html?campaign=example" };
     const photo = "https://i.qbitai.com/wp-content/uploads/2026/09/chip.jpeg";
@@ -74,7 +185,7 @@ describe("dynamic news covers", () => {
     const hf = { ...item(), source: "huggingface" as const, id: "huggingface:2609.00001", imageUrl: "https://cdn-thumbnails.huggingface.co/social-thumbnails/papers/2609.00001.png" };
     const result = await new PaperNewsCovers(dir, fetcher, image, pdf).get(hf);
     expect(result?.sourceUrl).toBe(hf.imageUrl); expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(fetcher.mock.calls[0][1]).toMatchObject({ credentials: "omit", redirect: "error" });
+    expect(fetcher.mock.calls[0][1]).toMatchObject({ credentials: "omit", redirect: "manual" });
   }));
   it("falls back to the actual PDF first page when a paper has no HTML figure", async () => withCache(async dir => {
     const fetcher = vi.fn(async (url: string) => new Response(url.includes("/pdf/") ? "%PDF-1.7 fake" : "<html></html>"));

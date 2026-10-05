@@ -3,6 +3,19 @@ import { describe, expect, it, vi } from "vitest";
 import { AgentDaemon } from "../daemon";
 
 describe("AgentDaemon terminal lifecycle helpers", () => {
+  it.each(["completed", "failed", "cancelled"])("acknowledges Stop on an already %s task without overwriting the result", async (status) => {
+    const task = { id: "stale-ui", status, terminalStatus: "partial_success", completedAt: 2000 };
+    const daemon = Object.assign(Object.create(AgentDaemon.prototype), {
+      taskRepo: { findById: vi.fn(() => task), update: vi.fn() },
+      pendingContinuationTaskIds: new Set(), deferredUserFollowUps: new Map(),
+      deferredUserFollowUpRetryTimers: new Map(), activeTasks: new Map(),
+      logEvent: vi.fn(),
+    });
+    await daemon.cancelTask(task.id);
+    expect(daemon.taskRepo.update).not.toHaveBeenCalled();
+    expect(daemon.logEvent).toHaveBeenCalledWith(task.id, "task_status",
+      expect.objectContaining({ status, reason: "stop_reconciled" }));
+  });
   it("does not resurrect a terminal parent task from a stale active cache entry on shutdown", () => {
     const daemonLike = Object.create(AgentDaemon.prototype) as Any;
 

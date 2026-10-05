@@ -16,6 +16,14 @@ function loadSkill(): CustomSkill {
 }
 
 describe("Presentation Studio bundled skill", () => {
+  it("offers native company templates without routing translations into new decks", () => {
+    const skill = loadSkill();
+    expect(skill.parameters?.find(p => p.name === "mode")?.options).toContain("template");
+    expect(skill.parameters?.find(p => p.name === "template_path")?.input).toBe("file");
+    expect(skill.prompt).toContain("import_template.mjs");
+    expect(skill.prompt).toContain("Use edit for revisions/translations");
+    expect(skill.prompt).toContain("template-v1");
+  });
   it("is the model-invocable default for PPTX work", () => {
     const skill = loadSkill();
 
@@ -157,9 +165,31 @@ Attached files (relative to workspace):
       "references/style-routing.md",
       "scripts/planning-contract.mjs",
       "scripts/validate_plan.mjs",
+      "scripts/prepare_project.mjs",
+      "scripts/review-queue.mjs",
+      "references/catalog-authoring.md",
+      "scripts/layout-catalog.mjs",
+      "scripts/layout-engine.mjs",
+      "scripts/visual-layouts.mjs",
+      "scripts/rendered-layout-check.mjs",
+      "scripts/package-check.mjs",
+      "scripts/native-edit.mjs",
+      "scripts/build_edit.mjs",
+      "scripts/inspect_edit.mjs",
+      "references/layout-catalog.md",
       "THIRD_PARTY_NOTICES.md",
     ]) {
       expect(fs.existsSync(path.join(skillDirectory, relativePath))).toBe(true);
     }
+  });
+
+  it("directs new decks into the catalog while keeping source edits on the preservation path", () => {
+    const prompt = loadSkill().prompt;
+    expect(prompt).toContain("catalog-v1");
+    expect(prompt).toContain("typed content");
+    expect(prompt).toContain("without truncating or shrinking");
+    expect(prompt).toContain("never bootstrap them as new catalog decks");
+    expect(prompt).toContain("native-edit.mjs");
+    expect(prompt).toContain("build_edit.mjs");
   });
 });

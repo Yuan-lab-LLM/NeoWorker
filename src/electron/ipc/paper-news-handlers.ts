@@ -37,9 +37,15 @@ export function setupPaperNewsHandlers(isTrusted: (event: IpcMainInvokeEvent) =>
     const item = service.findItem(id);
     const result = await summaries.get(item);
     if (item && "summary" in result) service.applySummary(item, result);
+    if (item && "error" in result && result.error === "excluded") service.excludeItem(item.id);
     return result;
   });
-  handle(IPC_CHANNELS.PAPER_NEWS_TRANSLATE, (id: unknown) => translations.get(service.findItem(id)));
+  handle(IPC_CHANNELS.PAPER_NEWS_TRANSLATE, async (id: unknown) => {
+    const item = service.findItem(id);
+    const result = await translations.get(item);
+    if (item && "error" in result && result.error === "excluded") service.excludeItem(item.id);
+    return result;
+  });
   handle(IPC_CHANNELS.PAPER_NEWS_COVER, (id: unknown) => {
     const item = service.findItem(id);
     return item ? covers.get(item) : null;
@@ -57,6 +63,7 @@ export function setupPaperNewsHandlers(isTrusted: (event: IpcMainInvokeEvent) =>
     return service.refresh(source as PaperNewsSource | PaperNewsSource[] | undefined);
   });
   handle(IPC_CHANNELS.PAPER_NEWS_CONFIG, (config: unknown) => service.saveConfig(config));
+  handle(IPC_CHANNELS.PAPER_NEWS_FOLLOW, (categories: unknown) => service.setFollowedCategories(categories));
   handle(IPC_CHANNELS.PAPER_NEWS_SAVE, (id: unknown, saved: unknown) =>
     service.setSaved(id, saved),
   );

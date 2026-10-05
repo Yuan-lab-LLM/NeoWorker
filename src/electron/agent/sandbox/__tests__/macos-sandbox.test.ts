@@ -7,6 +7,8 @@ import type { ChildProcess } from "child_process";
 import type { Workspace } from "../../../../shared/types";
 
 const spawnMock = vi.hoisted(() => vi.fn());
+const electronApp = vi.hoisted(() => ({ isPackaged: true, getAppPath: vi.fn(() => "/app/neoworker") }));
+vi.mock("electron", () => ({ app: electronApp }));
 
 vi.mock("child_process", () => ({
   spawn: spawnMock,
@@ -74,8 +76,18 @@ function makeChildProcess(options: {
 
 describe("MacOSSandbox", () => {
   beforeEach(() => {
+    electronApp.isPackaged = true;
     spawnMock.mockReset();
     spawnMock.mockImplementation(() => makeChildProcess());
+  });
+
+  it("allows development skill scripts and dependencies read-only without granting the checkout", () => {
+    electronApp.isPackaged = false;
+    const profile = (new MacOSSandbox(makeWorkspace()) as Any).generateSandboxProfile(false);
+    expect(profile).toContain('(allow file-read* (subpath "/app/neoworker/resources/skills"))');
+    expect(profile).toContain('(allow file-read* (subpath "/app/neoworker/node_modules"))');
+    expect(profile).not.toContain('(allow file-read* (subpath "/app/neoworker"))');
+    expect(profile).not.toContain('(allow file-write* (subpath "/app/neoworker/resources/skills"))');
   });
 
   it("passes multiline shell commands as a single -c argument to sandbox-exec", async () => {

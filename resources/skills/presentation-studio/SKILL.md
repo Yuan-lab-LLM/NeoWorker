@@ -8,7 +8,7 @@ description: >
   presentation workflow.
 license: MIT
 metadata:
-  version: "2.0.0"
+  version: "3.2.0"
   upstream:
     - "https://github.com/siril9/presentation-skill"
     - "https://github.com/gnipbao/knowledge-cat-ppt-skill"
@@ -47,32 +47,109 @@ Do not stop at a valid PPTX package. A successful delivery must be:
 
 ## Workflow
 
-1. Resolve the task mode: `create`, `edit`, `read`, or `auto`.
+1. Resolve the task mode: `create`, `template`, `edit`, `read`, or `auto`.
+   Use `template` when creating new content in a supplied company PPTX design.
+   Read `references/template-library.md` and import it with `import_template.mjs`
+   instead of the new-deck bootstrap. Existing-deck translations remain edits.
+   For existing-deck edits, use `references/editing.md` instead of steps 4–8.
+   Static native visual edits use `native-edit.mjs` for inventory,
+   `compose_native_edit.mjs` to compile semantic layout choices directly from
+   source text, then `build_edit.mjs` for applying the plan and rendered QA.
+   Prefer the composition compiler over hand-writing text and coordinates.
 2. Resolve the output project directory. Default to
    `{artifactDir}/presentation-studio`.
-3. Run the preflight:
+3. For new catalog decks, run `node {baseDir}/scripts/prepare_project.mjs`
+   with the bootstrap arguments below. It checks runtime dependencies, scaffolds
+   the project and returns source-figure batches in one call. Other modes run
    `node {baseDir}/scripts/preflight.mjs`.
-4. For a new deck, scaffold a workspace-local project:
+   Runtime dependencies are bundled. Do not install npm packages in the output
+   project or reverse-engineer the runtime scripts. If preflight fails, report
+   the specific missing dependency instead of repeatedly trying the same command.
+4. The combined preparation command uses these scaffold arguments (do not
+   scaffold twice). Standalone bootstrap remains available:
    `node {baseDir}/scripts/bootstrap_project.mjs --project-dir "<project dir>" --language "<language>" --style "<style>" --title "<title>"`.
-5. Read `references/narrative-and-quality.md` and
-   `references/style-routing.md`, then read `references/design-system.md`,
-   `references/slide-types.md`, and `references/pitfalls.md`. Read
-   `references/editing.md` only when editing an existing deck. Read
-   `references/pptxgenjs.md` only for API details.
-6. Complete `presentation-plan.json`: define the deck brief, core message,
-   narrative tension and resolution, evidence register, one visual grammar,
-   and one intent/takeaway/role per slide. Validate it before layout:
-   `node {baseDir}/scripts/validate_plan.mjs --project-dir "<project dir>"`.
-7. Create or edit one synchronous `createSlide(pres, theme)` module per slide
-   under `<project dir>/slides/`. Keep images under `slides/imgs/`.
+   When the source material is DOCX/PPTX, also pass `--source "<source file>"`.
+   This extracts original figures and nearby text to `source-assets-*.json` and
+   `slides/imgs/`. Inspect those figures before authoring: attachment text omits
+   visual evidence. PDF sources require `read_pdf_visual` as well as text.
+   For DOCX/PPTX figures use `analyze_image` with `paths: ["figure-1.png", ...]`
+   in batches of up to five and one common prompt about labels, relationships,
+   and evidence. It runs three inspections concurrently. Do not issue a separate
+   model/tool round trip per figure or shell-resize originals for analysis.
+   Use `--palette auto` by default. The catalog's `designFamily` owns the color
+   system; do not copy a legacy palette into `layoutColors` unless deliberately
+   following requested branding.
+5. For new catalog decks, read only `references/catalog-authoring.md`: it
+   consolidates the narrative, visual design, typed schema, safe drafting limits
+   and repair workflow. Other design references are optional for bespoke needs,
+   not prerequisites for every deck. Read source text only when it is missing
+   or truncated in the attachment context.
+6. Complete the source-grounded brief, evidence and all slide content together.
+   Build directly with `build_and_qa.mjs`; it already runs plan, schema, source
+   coverage and capacity validation before export. `validate_plan.mjs` remains
+   available for diagnosis but is not a required extra round trip. Patch only
+   reported fields/slides after failures; preserve the rest of the plan.
+7. For new decks, fill typed slide
+   content in `presentation-plan.json`. Use one design family and automatic
+   layout selection, or an explicit compatible layout. The catalog rejects
+   overflow and unsupported fields without discarding content or shrinking text.
+   Keep images under `slides/imgs/`. Choose the visual before writing prose:
+   for a technical architecture use `flow` with actual branches and convergence;
+   for document parsing use `transformation` with regions and processing stages;
+   for mechanisms use `mechanisms` with meaningful symbols and sequence only
+   when the source establishes that sequence. Use `system` for a technical
+   cover and `evidence-stage` for three qualified numeric callouts. Read their
+   complete examples in `references/layout-catalog.md`. Do not turn technical
+   relationships into editorial rows simply because rows are easier to fill.
+   Preserve source figures in the actual PPTX, especially product screenshots,
+   parsing examples, architecture details and evidence charts. A native redraw
+   can explain their relationships but does not replace the original evidence.
+   Keeping originals only in the project or speaker notes is not sufficient.
+   Use `image-wide` for dense figures and `image-gallery` for 2–4 related source
+   images with editable captions. Preserve aspect ratio and all original labels.
+   Low resolution is a source limitation, not permission to omit a figure:
+   retain it and add concise native explanation without inventing finer detail.
+   For supplemental redraws map actual relationships into `flow`,
+   `transformation`, `mechanisms`, `steps`, `layers`, `columns` or `chart`;
+   `visualBrief` alone does not create a visual. Do not use metrics for prose.
+   Account for every extracted figure. Individual decorative, duplicate or
+   out-of-scope images may be excluded with a specific decision in
+   `sourceVisualReview.exclusions` (see layout-catalog.md). Record an explicit
+   user instruction when the user asks to omit evidence. A global native-redraw
+   rationale or reusing just one image must not waive the remaining originals.
+   Existing module projects remain supported;
+   use `--layout-engine modules` for a deliberately custom design that
+   the catalog cannot represent. Do not mix modules and catalog content.
 8. Compile and run QA:
    `node {baseDir}/scripts/build_and_qa.mjs --project-dir "<project dir>"`.
-9. Inspect every PNG in `<project dir>/preview/`, not only extracted text. Check
-   typography, clipping, collisions, hierarchy, contrast, chart labels, and
-   whether each slide has an obvious visual job.
+9. Inspect every rendered page, not only extracted text. Use the PNG batches
+   listed in `visual-review-queue.json` with `analyze_image`, `paths` up to five,
+   `max_dimension: 960`, and one concise review prompt. The build already rendered
+   these images; do not re-render the PDF with read_pdf_visual for the same check.
+   For sources that only have a PDF, read_pdf_visual remains available. Inspect
+   higher-resolution crops for unclear labels. Keep page identity and successful
+   reviews; retry only failed images. A failed image is not verified.
+   Check typography, clipping, collisions, hierarchy, contrast, chart labels,
+   and whether each slide has an obvious visual job. Collect all findings from
+   a pass and fix them together instead of rebuilding after each individual page.
+   Ask the reviewer to identify the strongest remaining design/content problems,
+   rather than only answering a leading yes/no checklist about clipping. Check
+   title line breaks (do not split a Chinese term such as 精准度 across lines),
+   duplicated captions, palette consistency across pages and whether explanatory
+   text changes a source metric's meaning. Retrieval precision must not be
+   relabelled generation accuracy. Use deliberate newlines to keep phrases intact.
+   When redesigning a rejected deck, first render representative cover,
+   architecture, technical explanation and evidence pages from the actual PPTX.
+   Compare them with the rejected pages before extending the design to the full
+   deck. Fix the hierarchy and explanatory visuals, not only clipping. A valid
+   file, a different palette, more images or a successful render is not evidence
+   of improved design. Do not claim a deterministic compiler sample proves that
+   an unattended model run will make equally good authoring decisions.
 10. Fix the issues found, then run `build_and_qa.mjs` again. Do not claim the
    deck is final until a complete verification pass reveals no new blocking
-   issue.
+   issue. Recheck changed pages and any pages affected by shared layout/theme
+   changes; retain the prior inspection only for unchanged pages. Never count a
+   failed vision request as a passed check.
 11. Deliver the newly generated PPTX path reported by the build, the source
     directory, and `<project dir>/qa-report.json`. Never overwrite an earlier
     deck; subsequent builds use `presentation-v2.pptx`, `presentation-v3.pptx`,
@@ -80,7 +157,9 @@ Do not stop at a valid PPTX package. A successful delivery must be:
 
 ## Design rules
 
-- Use 16:9 (`LAYOUT_WIDE`).
+- Template fonts, colors, dimensions, artwork and native object structure take
+  priority over the defaults below. Never apply catalog styling to a template.
+- Otherwise use 16:9 (`LAYOUT_WIDE`).
 - Choose one of the supplied palettes and one style recipe. Do not invent a
   rainbow of unrelated colors.
 - Each slide has one job and exactly one page type.
@@ -151,8 +230,6 @@ presentation-studio/
 ├── presentation-plan.json
 ├── theme.json
 ├── slides/
-│   ├── slide-01.mjs
-│   ├── slide-02.mjs
 │   └── imgs/
 ├── output/
 │   └── presentation.pptx
@@ -162,7 +239,13 @@ presentation-studio/
 └── qa-report.json
 ```
 
-Every slide module must export both a `slideConfig` object and a synchronous
+New projects use `layoutEngine: "catalog-v1"` with slide content in the plan,
+not slide modules. See `references/catalog-authoring.md` for all 20 layouts and
+the three design families. The capacity estimate is not rendered visual QA.
+Existing module projects remain compatible.
+Only module projects add `slides/slide-01.mjs`, `slides/slide-02.mjs`, etc.
+
+In a module project, every slide module must export both a `slideConfig` object and a synchronous
 `createSlide` function:
 
 ```javascript
@@ -186,6 +269,14 @@ Never overwrite the user's original file. Copy it into the project first,
 preserve a source backup, and follow `references/editing.md`. If the existing
 deck has a coherent template, preserve its master/layout language rather than
 rebuilding it with unrelated styling. Render the edited output before delivery.
+
+“优化PPT” and “improve this deck” include visual improvement. Preserve slide
+count/order and source evidence without freezing positions, font sizes, spacing
+or hierarchy. Only explicit content-only or original-format requests freeze
+those visual properties. Do not mistake fewer words or valid XML for an
+improved design. Render before and after, run `scripts/inspect_edit.mjs` with
+the candidate's actual PDF, and inspect every page. When rendering fails,
+deliver an unverified draft instead of claiming visual optimization is complete.
 
 ### Translating existing decks
 

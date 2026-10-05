@@ -1,4 +1,5 @@
 import { BrowserReadingAssistant } from "./BrowserReadingAssistant";
+import { BrowserPageTranslation } from "./BrowserPageTranslation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import {
@@ -680,6 +681,9 @@ export function BrowserWorkbenchView({
     const webview = webviewRef.current;
     if (!webview) return;
     const handleNavigate = (event: Any) => {
+      // In-page navigation also fires for embedded subscription/advertising frames.
+      // Feeding their URL back into `src` replaces the article with that frame.
+      if (event?.isMainFrame === false) return;
       const nextUrl = event?.url || webview.getURL?.() || "";
       activeUrlRef.current = nextUrl;
       setUrlText(nextUrl);
@@ -1582,6 +1586,9 @@ export function BrowserWorkbenchView({
           </button>
         </div>
         <div className="browser-workbench-header-actions">
+          {/^(https?):/.test(activeUrl) && (
+            <BrowserPageTranslation key={activeTabId} taskId={taskId} sessionId={sessionId} url={activeUrl} ready={Boolean(visibleWebviewSize) && !isLoading} webviewRef={webviewRef} />
+          )}
           {/^(https?):/.test(activeUrl) && (
             <button type="button" className="br-toggle" aria-pressed={readingOpen}
               title={readingOpen ? "收起阅读助手" : "打开阅读助手"}

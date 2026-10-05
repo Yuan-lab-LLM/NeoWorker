@@ -1,3 +1,4 @@
+import { Newspaper } from "lucide-react";
 import natureml from "../assets/paper-news/publishers/natureml.png";
 import mit from "../assets/paper-news/publishers/mit.png";
 import ftchinese from "../assets/paper-news/publishers/ftchinese.jpg";
@@ -12,7 +13,6 @@ import github from "../assets/paper-news/github-black.svg";
 import githubWhite from "../assets/paper-news/github-white.svg";
 import bcg from "../assets/paper-news/publishers/bcg.ico";
 import benevans from "../assets/paper-news/publishers/benevans.webp";
-import chinatalk from "../assets/paper-news/publishers/chinatalk.png";
 import cloudflare from "../assets/paper-news/publishers/cloudflare.png";
 import cls from "../assets/paper-news/publishers/cls.ico";
 import cnblogs from "../assets/paper-news/publishers/cnblogs.png";
@@ -48,7 +48,6 @@ const assets: Record<string, string> = {
   "hf-datasets": huggingface,
   bcg,
   benevans,
-  chinatalk,
   cloudflare,
   cls,
   cnblogs,
@@ -75,7 +74,7 @@ const darkAssets: Record<string, string> = {
 /** Local official marks, never a runtime third-party favicon request. */
 export function NewsSourceBrand({ source }: { source: string }) {
   const asset = assets[source];
-  if (!asset) return null;
+  if (!asset) return <span className="pn-brand" aria-hidden="true"><Newspaper size={18} /></span>;
   const dark = darkAssets[source];
   return (
     <span

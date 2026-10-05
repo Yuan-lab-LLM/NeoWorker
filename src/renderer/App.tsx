@@ -1,3 +1,5 @@
+import type { CustomSkill } from "../shared/types";
+import { findSkillWorkspace, type SkillUseSelection } from "./utils/skill-card-presentation";
 import { NewsBrowserContext } from "./components/news-browser-context";
 import type { NewsTaskContext } from "../shared/news-task-draft";
 import {
@@ -178,6 +180,7 @@ import {
 } from "./utils/task-event-derived";
 import {
   isTaskActivelyWorking,
+  markTaskStopRequested,
   shouldEndOptimisticFollowUp,
   shouldEndOptimisticFollowUpFromTask,
 } from "./utils/task-working-state";
@@ -920,6 +923,7 @@ type SideChatState = {
 };
 
 type ComposerDraftRequest = {
+  parameterSkill?: CustomSkill;
   newsContext?: NewsTaskContext;
   id: number;
   value: string;
@@ -1013,6 +1017,7 @@ type SelectedTaskWorkspaceViewProps = {
       executionMode?: ExecutionMode;
       taskDomain?: TaskDomain;
       requestedSkillId?: string;
+      requestedSkillParameters?: Record<string, string | number | boolean>;
       permissionMode?: PermissionMode;
       shellAccess?: boolean;
       integrationMentions?: IntegrationMentionSelection[];
@@ -1045,7 +1050,7 @@ type SelectedTaskWorkspaceViewProps = {
   onStopTask: () => Promise<void>;
   onEnableShellForPausedTask: () => Promise<void>;
   onContinueWithoutShellForPausedTask: () => Promise<void>;
-  onWrapUpTask: () => Promise<void>;
+  onWrapUpTask: (teamRunId?: string) => Promise<void>;
   onOpenApproval: (approval: ApprovalRequest) => void;
   onSubmitInputRequest: (
     requestId: string,
@@ -5727,13 +5732,26 @@ export function App() {
     }
     if (!window.electronAPI?.getTaskEvents) return;
 
+    let disposed = false;
+    let loading = false;
     const loadChildHistoricalEvents = async () => {
+      if (loading || disposed) return;
+      loading = true;
       try {
-        const allEvents: TaskEvent[] = [];
-        for (const child of childTasks) {
-          const evts = await window.electronAPI.getTaskEvents(child.id);
-          allEvents.push(...evts);
-        }
+        const snapshots = await Promise.all(childTasks.map(async (child) => {
+          const [events, task] = await Promise.all([
+            window.electronAPI.getTaskEvents(child.id),
+            window.electronAPI.getTask(child.id),
+          ]);
+          return { events, task };
+        }));
+        if (disposed) return;
+        // History polling must refresh lifecycle rows too. Otherwise a missed
+        // completion event leaves an expert spinning beside its final answer.
+        setTasks((previous) => snapshots.reduce((tasks, snapshot) =>
+          snapshot.task ? upsertTaskPreservingIdentity(tasks, snapshot.task) : tasks,
+        previous));
+        const allEvents = snapshots.flatMap((snapshot) => snapshot.events);
         allEvents.sort((a, b) => a.timestamp - b.timestamp);
         setChildEvents(
           capTaskEvents(
@@ -5743,6 +5761,8 @@ export function App() {
         );
       } catch (error) {
         console.error("Failed to load child task events:", error);
+      } finally {
+        loading = false;
       }
     };
 
@@ -5777,6 +5797,7 @@ export function App() {
     }
 
     return () => {
+      disposed = true;
       if (pollTimer) clearInterval(pollTimer);
     };
     // Re-load when child tasks change (new children appear)
@@ -6971,6 +6992,7 @@ export function App() {
       executionMode?: ExecutionMode;
       taskDomain?: TaskDomain;
       requestedSkillId?: string;
+      requestedSkillParameters?: Record<string, string | number | boolean>;
       permissionMode?: PermissionMode;
       shellAccess?: boolean;
       agentConfigOverride?: AgentConfig;
@@ -7162,7 +7184,7 @@ export function App() {
         prev && prev.task.id === selectedTaskId
           ? {
               ...prev,
-              task: { ...prev.task, status: "cancelled" as Task["status"] },
+              task: markTaskStopRequested(prev.task),
             }
           : prev,
       );
@@ -7170,7 +7192,7 @@ export function App() {
       setTasks((prev) =>
         prev.map((t) =>
           t.id === selectedTaskId
-            ? { ...t, status: "cancelled" as Task["status"] }
+            ? markTaskStopRequested(t)
             : t,
         ),
       );
@@ -7185,6 +7207,8 @@ export function App() {
         });
       } else {
         await window.electronAPI.cancelTask(selectedTaskId);
+        await reconcileTaskFromCanonical(selectedTaskId, { refreshEventsWhenTerminal: true });
+        await loadTasks();
       }
     } catch (error: unknown) {
       console.error("Failed to cancel task:", error);
@@ -7200,7 +7224,7 @@ export function App() {
     }
   };
 
-  const handleWrapUpTask = async () => {
+  const handleWrapUpTask = async (teamRunId?: string) => {
     if (!selectedTaskId) return;
     if (remoteTaskView) {
       addToast({
@@ -7215,6 +7239,12 @@ export function App() {
     }
 
     try {
+      // Team controls target the run that was clicked. If that run has just
+      // finished, the backend no-ops; never wrap up a later user query instead.
+      if (typeof teamRunId === "string" && teamRunId) {
+        await window.electronAPI.wrapUpTeamRun(teamRunId);
+        return;
+      }
       const collaborativeRun =
         await window.electronAPI.findTeamRunByRootTask(selectedTaskId);
       if (
@@ -7240,10 +7270,16 @@ export function App() {
   };
 
   const handleCancelTaskById = async (taskId: string) => {
+    setTasks((previous) => previous.map((task) =>
+      task.id === taskId ? markTaskStopRequested(task) : task,
+    ));
     try {
       await window.electronAPI.cancelTask(taskId);
+      await reconcileTaskFromCanonical(taskId, { refreshEventsWhenTerminal: true });
     } catch (error: unknown) {
       console.error("Failed to cancel task:", error);
+      addToast({ type: "error", title: t("common.error", "Error"),
+        message: error instanceof Error ? error.message : t("app.error.cancelTask", "Failed to cancel task") });
     }
   };
 
@@ -7268,7 +7304,7 @@ export function App() {
 
   const handleOpenComposerDraft = async (
     draft: string,
-    skillContext?: { skillId?: string; skillLabel?: string; newsContext?: NewsTaskContext },
+    skillContext?: { skillId?: string; skillLabel?: string; newsContext?: NewsTaskContext; parameterSkill?: CustomSkill },
     workspaceOverride?: Workspace | null,
   ) => {
     const sequence = ++workspaceOpenSequenceRef.current;
@@ -7290,6 +7326,7 @@ export function App() {
       setComposerDraftRequest({
         id: composerDraftRequestIdRef.current,
         value: draft,
+        ...(skillContext?.parameterSkill ? { parameterSkill: skillContext.parameterSkill } : {}),
         ...(skillContext?.newsContext ? { newsContext: skillContext.newsContext } : {}),
         ...(skillContext?.skillId ? { skillId: skillContext.skillId } : {}),
         ...(skillContext?.skillLabel
@@ -7304,6 +7341,25 @@ export function App() {
         title: t("common.error", "Error"),
         message: t("app.error.createSession", "Could not create session"),
       });
+    }
+  };
+
+  const handleUseSkillDraft = async (selection: SkillUseSelection) => {
+    try {
+      let skillWorkspace: Workspace | undefined;
+      if ("workspacePath" in selection) {
+        if (!selection.workspacePath) throw new Error("Skill workspace unavailable");
+        skillWorkspace = findSkillWorkspace(selection.workspacePath, await window.electronAPI.listWorkspaces());
+        if (!skillWorkspace) throw new Error("Skill workspace unavailable");
+      }
+      await handleOpenComposerDraft(selection.prompt, {
+        skillId: selection.skillId,
+        skillLabel: selection.skillLabel,
+        parameterSkill: selection.parameterSkill,
+      }, skillWorkspace);
+    } catch (error) {
+      console.error("Failed to open skill draft:", error);
+      addToast({ type: "error", title: t("common.error", "Error"), message: t("skills.card.workspaceUnavailable", "The skill's workspace is unavailable. Open that workspace before using it.") });
     }
   };
 
@@ -8386,6 +8442,7 @@ export function App() {
               ) : currentView === "capabilityBundles" ? (
                 <CapabilityCenter
                   initialTab="bundles"
+                  onUseSkill={handleUseSkillDraft}
                   onOpenExperts={() => setCurrentView("agentsManage")}
                   onOpenSkillsSettings={() => {
                     setSettingsTab("skills");
@@ -8404,12 +8461,7 @@ export function App() {
                     setCurrentView("settings");
                   }}
                   onCreateExpertTask={handleCreateTask}
-                  onUseSkill={async (selection) => {
-                    await handleOpenComposerDraft(selection.prompt, {
-                      skillId: selection.skillId,
-                      skillLabel: selection.skillLabel,
-                    });
-                  }}
+                  onUseSkill={handleUseSkillDraft}
                   onUseBundle={async (selection) => {
                     await handleOpenComposerDraft(selection.prompt);
                   }}

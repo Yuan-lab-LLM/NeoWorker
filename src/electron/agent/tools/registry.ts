@@ -1,5 +1,5 @@
 import * as fs from "fs";
-import { preservePresentationStructure, isPresentationEditContinuation, PRESENTATION_EDIT_GUIDANCE } from "../presentation-edit-policy";
+import { preservePresentationStructure, isPresentationEditContinuation, resolvePresentationEditIntent, presentationEditGuidance, type PresentationEditIntent } from "../presentation-edit-policy";
 import * as fsPromises from "fs/promises";
 import * as path from "path";
 import { isArtifactRevisionRequest } from "../artifact-output-intent";
@@ -40,6 +40,7 @@ import { FileTools } from "./file-tools";
 import { SkillTools } from "./skill-tools";
 import { SearchTools } from "./search-tools";
 import { WebFetchTools } from "./web-fetch-tools";
+import { isReadOnlyHttpRequestInput } from "../security/http-request-permission";
 import { GlobTools } from "./glob-tools";
 import { GrepTools } from "./grep-tools";
 import { EditTools } from "./edit-tools";
@@ -745,16 +746,19 @@ export class ToolRegistry {
   private verifiedTranslationOutputs = new Map<string, { hash: string; sourcePath: string }>();
   private presentationTemplateRequest = "";
   private preservePresentationSlideStructure = false;
+  private presentationEditIntent: PresentationEditIntent = "content";
   private documentTaskMessage = "";
 
   setDocumentTaskContext(message: string): void {
     if (message !== this.documentTaskMessage) this.officeArtifactCoordinator.clear();
     const instruction = stripGeneratedTaskContext(message);
     const rejectsTemplate = /(?:不用|不要|无需).{0,8}(?:模板|模版)|(?:do not|don't).{0,12}template/i.test(instruction);
-    const attachedPptx = extractWorkspaceUploadPaths(message).some((source) => /\.pptx$/i.test(source));
+    // Files already inside a workspace are attached at their existing path;
+    // they do not pass through .neoworker/uploads.
+    const attachedPptx = extractOfficeAttachmentKinds(message).includes("pptx");
     const editsAttachedDeck = attachedPptx && preservePresentationStructure(instruction);
     const hasTemplate = (/(?:模板|模版|\btemplate\b)/i.test(instruction) || editsAttachedDeck) && !rejectsTemplate
-      && (extractWorkspaceUploadPaths(message).some((source) => /\.pptx$/i.test(source))
+      && (attachedPptx
         || Boolean(this.presentationTemplateRequest)
         || /(?:这个|这份|原|上传|提供|附件|第[一二三\d]+个).{0,20}(?:模板|模版)|\b(?:this|attached|uploaded|provided|original)\b.{0,30}\btemplate\b/i.test(instruction));
     if (hasTemplate) {
@@ -767,6 +771,9 @@ export class ToolRegistry {
     }
     this.preservePresentationSlideStructure = Boolean(this.presentationTemplateRequest)
       && preservePresentationStructure(instruction, attachedPptx ? false : this.preservePresentationSlideStructure);
+    this.presentationEditIntent = this.preservePresentationSlideStructure
+      ? resolvePresentationEditIntent(instruction, attachedPptx ? "content" : this.presentationEditIntent)
+      : "content";
     this.documentTaskMessage = message;
     const next = resolveDocumentTranslationContract(message, this.documentTranslationContract);
     if (next.request !== this.documentTranslationContract?.request) this.verifiedTranslationOutputs.clear();
@@ -774,7 +781,7 @@ export class ToolRegistry {
   }
 
   getPresentationEditGuidance(): string {
-    return this.preservePresentationSlideStructure ? PRESENTATION_EDIT_GUIDANCE : "";
+    return this.preservePresentationSlideStructure ? presentationEditGuidance(this.presentationEditIntent) : "";
   }
 
   getDocumentTranslationGuidance(): string {
@@ -817,6 +824,14 @@ export class ToolRegistry {
       return "当前工具尚不能可靠完成 PDF 原版式翻译，无法保证目标语言文字、字体和图文位置均保持正确。本轮未完成，原文件已保留；可以提供可编辑的 DOCX/PPTX，或明确允许重新排版后继续。";
     }
     return null;
+  }
+
+  isVerifiedTranslationOutput(candidate: string): boolean {
+    try {
+      const resolved = this.resolveTranslationFile(candidate);
+      const receipt = this.verifiedTranslationOutputs.get(resolved);
+      return Boolean(receipt && createHash("sha256").update(fs.readFileSync(resolved)).digest("hex") === receipt.hash);
+    } catch { return false; }
   }
 
   getDocumentTranslationDeliveryError(paths: string[]): string | null {
@@ -2003,23 +2018,6 @@ export class ToolRegistry {
     }
   }
 
-  private isReadOnlyHttpRequestInput(input: Any): boolean {
-    const method =
-      typeof input?.method === "string" && input.method.trim().length > 0
-        ? input.method.trim().toUpperCase()
-        : "GET";
-    const hasBody = typeof input?.body === "string" && input.body.trim().length > 0;
-    const headers =
-      input?.headers && typeof input.headers === "object" && !Array.isArray(input.headers)
-        ? Object.keys(input.headers as Record<string, unknown>)
-        : [];
-    const loweredHeaders = headers.map((header) => header.toLowerCase());
-    const customHeaders = loweredHeaders.filter(
-      (header) => !["accept", "accept-language", "user-agent"].includes(header),
-    );
-    return (method === "GET" || method === "HEAD") && !hasBody && customHeaders.length === 0;
-  }
-
   private isUserUploadedVisualInput(toolName: string, input?: Any): boolean {
     const canonicalToolName = canonicalizeToolNameUtil(toolName);
     if (
@@ -2028,13 +2026,15 @@ export class ToolRegistry {
     ) {
       return false;
     }
-    const rawPath = typeof input?.path === "string" ? input.path.trim() : "";
-    if (!rawPath) return false;
+    const paths: unknown[] = canonicalToolName === "analyze_image" && Array.isArray(input?.paths)
+      ? input.paths
+      : [input?.path];
+    if (!paths.length) return false;
 
     const workspaceRoot = path.resolve(this.workspace.path);
     const uploadsRoot = path.join(workspaceRoot, ".neoworker", "uploads");
-    const candidate = path.resolve(workspaceRoot, rawPath);
-    return candidate.startsWith(`${uploadsRoot}${path.sep}`);
+    return paths.every(rawPath => typeof rawPath === "string" && rawPath.trim() &&
+      path.resolve(workspaceRoot, rawPath.trim()).startsWith(`${uploadsRoot}${path.sep}`));
   }
 
   private getApprovalTypeForTool(toolName: string, input?: Any): ApprovalType | null {
@@ -2047,7 +2047,7 @@ export class ToolRegistry {
       return "network_access";
     }
     if (canonicalToolName === "http_request") {
-      return this.isReadOnlyHttpRequestInput(input) ? "network_access" : "data_export";
+      return isReadOnlyHttpRequestInput(input) ? "network_access" : "data_export";
     }
     if (canonicalToolName === "analyze_image" || canonicalToolName === "read_pdf_visual") {
       if (this.isUserUploadedVisualInput(canonicalToolName, input)) return null;
@@ -2856,9 +2856,13 @@ export class ToolRegistry {
     register("cancel_video_generation_job", async ({ request }) =>
       this.videoTools.cancelVideoGenerationJob(request.input),
     );
-    register("analyze_image", async ({ request }) => this.visionTools.analyzeImage(request.input));
+    register("analyze_image", async ({ request }) => this.visionTools.analyzeImage(request.input, {
+      signal: request.runtime?.signal instanceof AbortSignal ? request.runtime.signal : undefined,
+    }));
     register("read_pdf_visual", async ({ request }) =>
-      this.visionTools.readPdfVisual(request.input),
+      this.visionTools.readPdfVisual(request.input, {
+        signal: request.runtime?.signal instanceof AbortSignal ? request.runtime.signal : undefined,
+      }),
     );
     register(
       "screenshot",
@@ -5477,20 +5481,9 @@ ${skillDescriptions}`;
       if (!request && !this.documentTranslationContract?.request) return { query: "", sourcePaths: [] };
     }
 
-    const taskText = request || this.documentTranslationContract?.request || [
-      task?.title,
-      task?.prompt,
-      task?.rawPrompt,
-      task?.userPrompt,
-    ]
-      .filter((value): value is string => typeof value === "string")
-      .join("\n");
-    const query = buildCanonicalTaskIntentQuery({
-      title: task?.title,
-      prompt: task?.prompt,
-      rawPrompt: this.documentTranslationContract?.request || task?.rawPrompt,
-      userPrompt: task?.userPrompt,
-    });
+    const taskText = request || this.documentTranslationContract?.request ||
+      buildDocumentTaskMessage(task || {});
+    const query = buildCanonicalTaskIntentQuery({ prompt: taskText });
     if (!taskText.trim()) return { query, sourcePaths: [] };
 
     const candidates: string[] = [];
@@ -5516,9 +5509,9 @@ ${skillDescriptions}`;
       addCandidate(match[0]);
     }
 
-    // Attachment descriptors sometimes contain only the filename. Prefer an
-    // unambiguous task upload in that case, but never pick an arbitrary PPTX
-    // from the workspace.
+    // Attachment descriptors sometimes contain only the filename. Only a
+    // named match belongs to this request; even a lone workspace upload may
+    // belong to a different conversation.
     if (/\.(?:pptx)\b/i.test(taskText)) {
       const uploadsRoot = path.join(this.workspace.path, ".neoworker", "uploads");
       try {
@@ -5543,11 +5536,7 @@ ${skillDescriptions}`;
         const namedMatches = pptxPaths.filter((candidate) =>
           taskText.includes(path.basename(candidate)),
         );
-        for (const candidate of namedMatches.length > 0
-          ? namedMatches
-          : pptxPaths.length === 1
-            ? pptxPaths
-            : []) {
+        for (const candidate of namedMatches) {
           addCandidate(candidate);
         }
       } catch {
@@ -6069,6 +6058,7 @@ ${skillDescriptions}`;
         prompt: task?.prompt,
         rawPrompt: task?.rawPrompt,
         userPrompt: task?.userPrompt,
+        parentTaskId: task?.parentTaskId,
       });
       if (!query) return false;
       return skillLoader.matchesSkillRoutingQuery(skill, query);

@@ -1,3 +1,4 @@
+import { isNewsContentAllowed } from "../../shared/news-content-policy";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { PaperNewsItem } from "../../shared/paper-news";
 import {
@@ -16,6 +17,7 @@ export function useNewsCardTranslations(
   items: PaperNewsItem[],
   root: RefObject<HTMLElement | null>,
   filterKey = "",
+  onExcluded?: (item: PaperNewsItem) => void,
 ) {
   const [enabled, setEnabled] = useState(false);
   const [revision, update] = useState(0);
@@ -23,8 +25,8 @@ export function useNewsCardTranslations(
   const visible = useRef(new Set<string>());
   const inFlight = useRef(0);
   const mounted = useRef(false);
-  const current = useRef({ enabled, items });
-  current.current = { enabled, items };
+  const current = useRef({ enabled, items, onExcluded });
+  current.current = { enabled, items, onExcluded };
   const pumpRef = useRef<() => void>(() => {});
   const modelUnavailable = useRef(false);
   pumpRef.current = () => {
@@ -56,12 +58,15 @@ export function useNewsCardTranslations(
           result.translation.originalTitle === item.title &&
           result.translation.originalSummary === item.summary
         ) {
-          cache.current.set(key, { status: "done", value: result.translation });
+          cache.current.set(key, isNewsContentAllowed({ ...item, title: result.translation.title, summary: result.translation.summary })
+            ? { status: "done", value: result.translation } : { status: "error", error: "excluded" });
         } else {
           const error = "error" in result ? result.error : "failed";
           cache.current.set(key, { status: "error", error });
           if (error === "model") modelUnavailable.current = true;
         }
+        const settled = cache.current.get(key);
+        if (mounted.current && settled?.status === "error" && settled.error === "excluded") current.current.onExcluded?.(item);
         inFlight.current--;
         if (mounted.current) {
           update((n) => n + 1);
@@ -125,6 +130,10 @@ export function useNewsCardTranslations(
       return enabled && entry?.status === "done"
         ? `${entry.value.title} ${entry.value.summary}`
         : "";
+    },
+    excluded: (item: PaperNewsItem) => {
+      const entry = cache.current.get(newsTranslationKey(item));
+      return entry?.status === "error" && entry.error === "excluded";
     },
     toggle: () => setEnabled((value) => !value),
     modelUnavailable: modelUnavailable.current,

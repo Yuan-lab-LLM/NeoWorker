@@ -36,6 +36,7 @@ import {
   Newspaper,
   Wrench,
   Clock3,
+  Settings,
   Download,
 } from "lucide-react";
 import { resolveTwinIcon } from "../utils/twin-icons";
@@ -52,7 +53,8 @@ import { SidebarTaskSignals } from "./SidebarTaskSignals";
 import { capitalizeSidebarSessionTitle } from "../utils/sidebar-title";
 import { deriveSlashCommandTaskTitle } from "../utils/slash-command-title";
 import { translate, useLanguage } from "../i18n";
-import { getLocalizedAgentRoleName } from "../utils/localized-agent-roles";
+import { getAgentTaskStatus } from "../../shared/agent-task-status";
+import { getLocalizedAgentRoleName, getLocalizedSubagentDisplay } from "../utils/localized-agent-roles";
 import { getLocalizedSidebarSystemTitle } from "../utils/localized-sidebar-titles";
 
 const SIDEBAR_ITEM_HEIGHT = 22;
@@ -341,17 +343,43 @@ export interface TaskTreeNode {
 
 export type SidebarSessionCategory = "all" | "team" | "automated";
 
+export function collapseScheduledSessions(nodes: TaskTreeNode[], selectedTaskId?: string | null): TaskTreeNode[] {
+  const representatives = new Map<string, TaskTreeNode>();
+  const key = (node: TaskTreeNode) => node.task.source === "cron" && node.task.agentConfig?.scheduledJobId
+    ? `${node.task.workspaceId}:${node.task.agentConfig.scheduledJobId}` : node.task.id;
+  const priority = (node: TaskTreeNode) => node.task.id === selectedTaskId ? 3
+    : isActiveSessionStatus(node.task.status) || isAwaitingSessionStatus(node.task.status) ? 2
+    : node.task.pinned ? 1 : 0;
+  for (const node of nodes) {
+    const existing = representatives.get(key(node));
+    if (!existing || priority(node) > priority(existing) || (priority(node) === priority(existing) &&
+      (node.task.updatedAt || node.task.createdAt) > (existing.task.updatedAt || existing.task.createdAt))) {
+      representatives.set(key(node), node);
+    }
+  }
+  return nodes.filter((node) => representatives.get(key(node)) === node);
+}
+
 export function resolveSidebarSessionCategoryTrees(
   userTaskTree: TaskTreeNode[],
   automatedTaskTree: TaskTreeNode[],
   category: SidebarSessionCategory,
   revealAllForSearch = false,
+  selectedTaskId?: string | null,
 ): { user: TaskTreeNode[]; automated: TaskTreeNode[] } {
   if (revealAllForSearch) {
     return { user: userTaskTree, automated: automatedTaskTree };
   }
+  automatedTaskTree = collapseScheduledSessions(automatedTaskTree, selectedTaskId);
   if (category === "all") {
-    return { user: userTaskTree, automated: [] };
+    return {
+      user: userTaskTree,
+      automated: automatedTaskTree.filter(({ task }) =>
+        task.source === "cron" && !task.heartbeatRunId &&
+        !/^heartbeat:/i.test(task.title.trim()) &&
+        Boolean(task.agentConfig?.scheduledJobId || /^scheduled:/i.test(task.title.trim())),
+      ),
+    };
   }
   if (category === "team") {
     return {
@@ -995,8 +1023,9 @@ function SidebarComponent({
         automatedTaskTree,
         sessionCategory,
         hasSessionSearch,
+        selectedTaskId,
       ),
-    [automatedTaskTree, hasSessionSearch, sessionCategory, userTaskTree],
+    [automatedTaskTree, hasSessionSearch, sessionCategory, userTaskTree, selectedTaskId],
   );
 
   // Count root tasks per session mode (for filter badge counts).
@@ -1540,7 +1569,11 @@ function SidebarComponent({
     );
   };
 
-  const getSubagentState = (status: Task["status"]) => {
+  const getSubagentState = (task: Task) => {
+    const status = task.status;
+    const outcome = getAgentTaskStatus(task);
+    if (outcome === "partial") return { key: "waiting", label: translate("collab.lines.partial", "Partially completed") };
+    if (outcome === "cancelled") return { key: "idle", label: translate("collab.lines.cancelled", "Cancelled") };
     if (isActiveSessionStatus(status)) {
       return {
         key: "working",
@@ -1553,13 +1586,16 @@ function SidebarComponent({
         label: translate("sidebar.subagent.waiting", "Waiting for review"),
       };
     }
-    if (status === "completed") {
+    if (outcome === "needs-action" || outcome === "approval" || outcome === "resumable") {
+      return { key: "waiting", label: translate("sidebar.subagent.waiting", "Waiting for review") };
+    }
+    if (outcome === "completed") {
       return {
         key: "done",
         label: translate("sidebar.subagent.completed", "Completed"),
       };
     }
-    if (status === "failed" || status === "cancelled") {
+    if (outcome === "failed") {
       return {
         key: "failed",
         label: translate("sidebar.subagent.stopped", "Needs attention"),
@@ -1652,7 +1688,7 @@ function SidebarComponent({
       attentionState === "needs_attention";
     const isAutomatedTask = isAutomatedSession(task);
     const sessionTitle = getSidebarSessionTitle(node);
-    const subagentState = getSubagentState(task.status);
+    const subagentState = getSubagentState(task);
     const sessionActions = !node.synthetic ? (
       <div className="task-item-actions cli-task-actions">
         <button
@@ -1897,20 +1933,18 @@ function SidebarComponent({
             <div
               className={`cli-task-title-row ${isAwaitingSession ? "cli-task-title-row-awaiting" : ""}`}
             >
-              {isSubAgent && task.assignedAgentRoleId ? (
+              {isSubAgent ? (
                 <span
                   className="cli-task-title cli-task-title-with-agent cli-task-title-subagent-role"
                   title={`${sessionTitle} - ${subagentState.label}`}
                 >
                   {(() => {
                     const role = agentRoles.get(task.assignedAgentRoleId!);
-                    const label = role
-                      ? getLocalizedAgentRoleName(
-                          stripAllEmojis(role.displayName),
-                        )
-                      : getLocalizedSidebarSystemTitle(
-                          stripAllEmojis(sessionTitle),
-                        );
+                    const label = getLocalizedSubagentDisplay(
+                      stripAllEmojis(sessionTitle),
+                      undefined,
+                      role ? { ...role, name: role.displayName } : undefined,
+                    ).name;
                     return <span className="cli-task-agent-name">{label}</span>;
                   })()}
                 </span>
@@ -2846,19 +2880,7 @@ function SidebarComponent({
           >
             <span className="terminal-only">[cfg]</span>
             <span className="modern-only">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
+              <Settings size={16} strokeWidth={2} aria-hidden="true" />
               {translate("sidebar.settings", "Settings")}
             </span>
           </button>

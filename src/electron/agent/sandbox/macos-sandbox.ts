@@ -12,6 +12,7 @@ import { spawn, ChildProcess, SpawnOptions } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
+import { app } from "electron";
 import { Workspace } from "../../../shared/types";
 import { ISandbox, SandboxType, SandboxOptions, SandboxResult, isSafeEnvironmentKey } from "./sandbox-factory";
 import { resolveBundledOfficeCliExecutable } from "../../utils/officecli-runtime";
@@ -51,13 +52,27 @@ function getBundledRuntimeReadPaths(): string[] {
     typeof process.resourcesPath === "string" && process.resourcesPath.trim()
       ? path.resolve(process.resourcesPath)
       : "";
-  if (!resourcesRoot) return [];
-  return [
+  const packagedPaths = resourcesRoot ? [
     resourcesRoot,
     path.join(resourcesRoot, "skills"),
     path.join(resourcesRoot, "app.asar.unpacked"),
     path.join(resourcesRoot, "node_modules"),
-  ];
+  ] : [];
+  // In source builds Electron's resourcesPath points at Electron.app, while
+  // trusted bundled skills and their dependencies live in the application
+  // checkout. Grant those runtime inputs read access, never the entire repo.
+  const appRoot = app?.isPackaged === false ? app.getAppPath() : undefined;
+  // Same optional, locally installed document runtime used by NeoWorker's
+  // preview service. Only dependency binaries/libraries are readable; account
+  // settings and the rest of the cache/home directory remain inaccessible.
+  const documentRuntime = path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies");
+  const documentPaths = fs.existsSync(path.join(documentRuntime, "node/node_modules/@oai/artifact-tool/package.json"))
+    ? [documentRuntime] : [];
+  return [...packagedPaths, ...documentPaths, ...(appRoot ? [
+    path.join(appRoot, "resources", "skills"),
+    path.join(appRoot, "node_modules"),
+    path.join(appRoot, "package.json"),
+  ] : [])];
 }
 
 const PROTECTED_WORKSPACE_WRITE_RELATIVE_PATHS = [
@@ -507,6 +522,7 @@ export class MacOSSandbox implements ISandbox {
   (literal "/dev/null")
   (literal "/dev/urandom")
   (literal "/dev/random")
+  (literal "/private/var/select/sh")
   (subpath "/private/tmp")
   (subpath "${escapedTempDir}")
 )
@@ -530,6 +546,7 @@ export class MacOSSandbox implements ISandbox {
       "/dev/null",
       "/dev/urandom",
       "/dev/random",
+      "/private/var/select/sh",
       "/private/tmp",
       "/opt/homebrew",
       ...bundledRuntimeReadPaths,

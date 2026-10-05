@@ -36,6 +36,7 @@ interface CaptureRect {
   y: number;
   width: number;
   height: number;
+  scaleFactor: number;
   text?: string;
 }
 
@@ -88,6 +89,7 @@ export const renderOfficeHtmlVisualEvidence: OfficeHtmlVisualRenderer = async ({
       nodeIntegration: false,
       webSecurity: true,
       backgroundThrottling: false,
+      offscreen: true,
     },
   });
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -145,11 +147,9 @@ export const renderOfficeHtmlVisualEvidence: OfficeHtmlVisualRenderer = async ({
     await fs.mkdir(evidenceDirectory, { recursive: true });
     const imagePaths: string[] = [];
     const textWarningPages: number[] = [];
-    let previousCapture: Buffer | undefined;
-    let previousText: string | undefined;
-
     for (const region of regions.slice(0, maxPages)) {
       const rect = (await window.webContents.executeJavaScript(`(async () => {
+        window.__neoworkerRestorePage?.();
         const activationNode = document.querySelectorAll(${JSON.stringify(region.selector)})[${region.index}];
         if (${Boolean(region.activate)} && activationNode) {
           activationNode.click();
@@ -160,15 +160,46 @@ export const renderOfficeHtmlVisualEvidence: OfficeHtmlVisualRenderer = async ({
           : `activationNode`};
         if (!node) return null;
         await Promise.all(Array.from(node.querySelectorAll("img")).map((image) => image.decode().catch(() => {})));
-        node.scrollIntoView({ block: "center", inline: "center" });
+        const width = Math.ceil(node.offsetWidth);
+        const height = Math.ceil(node.offsetHeight);
+        // Keep the original ancestry (fonts and scoped selectors), but isolate
+        // this page at the viewport origin. Cropping a scrolling multi-page
+        // viewer can capture the previous compositor frame or adjacent slides.
+        const saved = new Map();
+        const set = (element, styles) => {
+          if (!saved.has(element)) saved.set(element, element.getAttribute("style"));
+          for (const [key, value] of Object.entries(styles)) element.style.setProperty(key, value, "important");
+        };
+        window.__neoworkerRestorePage = () => {
+          for (const [element, style] of saved) {
+            if (style === null) element.removeAttribute("style");
+            else element.setAttribute("style", style);
+          }
+        };
+        const geometry = {
+          display: "block", position: "relative", inset: "auto", margin: "0",
+          padding: "0", border: "0", transform: "none", zoom: "1",
+          width: width + "px", height: height + "px", "min-width": "0",
+          "min-height": "0", "max-width": "none", "max-height": "none",
+          "box-sizing": "border-box", overflow: "hidden", "flex-shrink": "0"
+        };
+        let branch = node;
+        while (branch.parentElement) {
+          const parent = branch.parentElement;
+          for (const sibling of parent.children) {
+            if (sibling !== branch && !["STYLE", "LINK", "SCRIPT"].includes(sibling.tagName)) set(sibling, { display: "none" });
+          }
+          set(parent, geometry);
+          parent.scrollTop = 0;
+          parent.scrollLeft = 0;
+          branch = parent;
+        }
+        set(node, { position: "relative", inset: "auto", margin: "0", transform: "none", zoom: "1", width: width + "px", height: height + "px", "max-width": "none", "max-height": "none", "flex-shrink": "0" });
+        window.scrollTo(0, 0);
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        const bounds = node.getBoundingClientRect();
         return {
           text: node.innerText || '',
-          x: Math.max(0, Math.floor(bounds.left)),
-          y: Math.max(0, Math.floor(bounds.top)),
-          width: Math.max(1, Math.min(window.innerWidth - Math.max(0, Math.floor(bounds.left)), Math.ceil(bounds.width))),
-          height: Math.max(1, Math.min(window.innerHeight - Math.max(0, Math.floor(bounds.top)), Math.ceil(bounds.height)))
+          x: 0, y: 0, width, height, scaleFactor: window.devicePixelRatio || 1
         };
       })()`, true)) as CaptureRect | null;
       if (!rect || rect.width < 1 || rect.height < 1) {
@@ -178,22 +209,63 @@ export const renderOfficeHtmlVisualEvidence: OfficeHtmlVisualRenderer = async ({
         if (textValidation === "strict") throw new Error(`Page ${region.index + 1} contains replacement or mojibake characters.`);
         textWarningPages.push(region.index + 1);
       }
-      let image = await window.webContents.capturePage(rect);
-      let png = image.toPNG();
-      // Hidden Chromium windows can briefly return the preceding compositor frame after scrolling.
-      for (let retry = 0; retry < 3 && previousCapture?.equals(png) && rect.text !== previousText; retry++) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        image = await window.webContents.capturePage(rect);
-        png = image.toPNG();
+      if (rect.width > 8192 || rect.height > 8192) {
+        throw new Error(`Page ${region.index + 1} exceeds the supported capture dimensions.`);
       }
-      if (image.isEmpty()) {
+      // A small marker outside the delivered page identifies the compositor
+      // frame. RAF completion alone does not guarantee that a hidden window's
+      // first paint belongs to the current page (especially after a resize).
+      const markerColor = [30 + imagePaths.length % 200, 190, 137];
+      window.setContentSize(rect.width + 8, rect.height);
+      await window.webContents.executeJavaScript(`(() => {
+        document.getElementById('__neoworkerFrameMarker')?.remove();
+        const marker = document.createElement('div');
+        marker.id = '__neoworkerFrameMarker';
+        marker.style.cssText = 'position:fixed!important;left:${rect.width}px!important;top:0!important;width:8px!important;height:8px!important;background:rgb(${markerColor.join(",")})!important;z-index:2147483647!important;opacity:1!important;';
+        document.body.appendChild(marker);
+      })()`);
+      await window.webContents.executeJavaScript("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      await window.webContents.executeJavaScript(`(() => {
+        const node = document.querySelectorAll(${JSON.stringify(region.captureSelector || region.selector)})[${region.captureSelector ? 0 : region.index}];
+        // OfficeCLI's resize listener reapplies its interactive scale after the
+        // viewport changes. Export the native canvas, not that scaled viewer.
+        node.style.setProperty('transform', 'none', 'important');
+        node.parentElement.style.setProperty('width', '${rect.width}px', 'important');
+        node.parentElement.style.setProperty('height', '${rect.height}px', 'important');
+        return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      })()`);
+      // Offscreen painting is independent of window occlusion. Wait for a new
+      // paint after positioning instead of accepting an old, non-empty frame.
+      const png = await new Promise<Buffer>((resolve, reject) => {
+        const onPaint = (_event: unknown, _dirty: unknown, frame: import("electron").NativeImage) => {
+          const pixels = frame.toBitmap({ scaleFactor: 1 });
+          const size = frame.getSize(1);
+          const scale = rect.scaleFactor;
+          const offset = (Math.round(2 * scale) * size.width + Math.round((rect.width + 2) * scale)) * 4;
+          const [r, g, b] = markerColor;
+          const current = size.width === Math.round((rect.width + 8) * scale) && size.height === Math.round(rect.height * scale) &&
+            pixels[offset + 1] === g && ((pixels[offset] === b && pixels[offset + 2] === r) || (pixels[offset] === r && pixels[offset + 2] === b));
+          if (!current) {
+            window.webContents.invalidate();
+            return;
+          }
+          clearTimeout(timer);
+          window.webContents.removeListener("paint", onPaint);
+          resolve(frame.crop({ x: 0, y: 0, width: Math.round(rect.width * scale), height: Math.round(rect.height * scale) }).toPNG());
+        };
+        const timer = setTimeout(() => {
+          window.webContents.removeListener("paint", onPaint);
+          reject(new Error(`Page ${region.index + 1} did not paint in time.`));
+        }, 5_000);
+        window.webContents.on("paint", onPaint);
+        window.webContents.invalidate();
+      });
+      if (png.length === 0) {
         throw new Error(`Page ${region.index + 1} produced an empty visual capture.`);
       }
       const imagePath = path.join(evidenceDirectory, pageImageName(imagePaths.length));
       await fs.writeFile(imagePath, png);
       imagePaths.push(imagePath);
-      previousCapture = png;
-      previousText = rect.text;
     }
 
     const evidencePath = path.join(evidenceDirectory, "evidence.json");

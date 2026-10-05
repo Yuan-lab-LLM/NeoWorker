@@ -55,20 +55,33 @@ export interface ActiveVisionRoute {
 
 const DEFAULT_MAX_TOKENS = 900;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024; // 20MB
-const IMAGE_DOWNSCALE_THRESHOLD = 2 * 1024 * 1024; // 2MB — auto-downscale above this
+const VISION_REQUEST_BUDGET_MS = 60_000;
 const VISION_CACHE_MAX_ENTRIES = 128;
 const logger = createLogger("VisionTools");
 
-export async function requestVisionWithRecovery(provider: LLMProvider, request: LLMRequest) {
-  const first = await provider.createMessage(request);
-  const hasText = first.content?.some((block) => block.type === "text" && block.text.trim());
-  if (hasText || first.stopReason !== "max_tokens") return first;
-  // Retry only explicit output-budget exhaustion, on the same configured route.
-  // Never turn hidden reasoning into a purported visual answer.
-  return provider.createMessage({
-    ...request,
-    maxTokens: Math.min(8192, Math.max(4096, request.maxTokens * 2)),
+export async function requestVisionWithRecovery(provider: LLMProvider, request: LLMRequest, timeoutMs = VISION_REQUEST_BUDGET_MS) {
+  const controller = new AbortController();
+  const timeoutError = Object.assign(new Error("Visual analysis exceeded its time budget; this image has not been verified."), { code: "VISION_TIMEOUT" });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let onAbort: () => void = () => {};
+  const stopped = new Promise<never>((_resolve, reject) => {
+    onAbort = () => { controller.abort(request.signal?.reason); reject(request.signal?.reason || new Error("Visual analysis aborted")); };
+    if (request.signal?.aborted) onAbort();
+    else request.signal?.addEventListener("abort", onAbort, { once: true });
+    timer = setTimeout(() => { controller.abort(timeoutError); reject(timeoutError); }, Math.max(1, timeoutMs));
   });
+  const run = async () => {
+    controller.signal.throwIfAborted();
+    const boundedRequest = { ...request, signal: controller.signal };
+    const first = await provider.createMessage(boundedRequest);
+    controller.signal.throwIfAborted();
+    const hasText = first.content?.some((block) => block.type === "text" && block.text.trim());
+    if (hasText || first.stopReason !== "max_tokens") return first;
+    // Both attempts share one deadline and cancellation signal.
+    return provider.createMessage({ ...boundedRequest, maxTokens: Math.min(8192, Math.max(4096, request.maxTokens * 2)) });
+  };
+  try { return await Promise.race([run(), stopped]); }
+  finally { clearTimeout(timer); request.signal?.removeEventListener("abort", onAbort); }
 }
 
 const VISION_REFUSAL_PATTERNS = [
@@ -241,6 +254,9 @@ export class VisionTools {
 
   private shouldRetryVisionError(error: unknown): boolean {
     const asAny = (error ?? {}) as Any;
+    // A deadline already consumed the allowed request budget. Do not spend
+    // another full budget inside the same tool call or fall through models.
+    if (asAny?.code === "VISION_TIMEOUT") return false;
     const statusRaw =
       asAny?.status ??
       asAny?.statusCode ??
@@ -359,7 +375,7 @@ export class VisionTools {
       {
         name: "analyze_image",
         description:
-          "Analyze an image file from the workspace using a vision-capable LLM. " +
+          "Analyze workspace images using a vision-capable LLM. Use paths for 2–5 related source figures or slide PNGs: three are checked concurrently, with a separate result for each. " +
           "Use this for screenshots/photos: extract text, describe items, answer questions, or summarize what is shown. " +
           "The app routes this through the active image-capable task model automatically. " +
           "Do not choose or guess a provider/model.",
@@ -371,6 +387,10 @@ export class VisionTools {
               description:
                 'Path to an image file within the current workspace (e.g., "screenshot.png" or ".neoworker/inbox/.../photo.jpg").',
             },
+            paths: {
+              type: "array", items: { type: "string" }, minItems: 1, maxItems: 5,
+              description: "Batch of image paths. Supply either path or paths, not both. Use one common review prompt; results retain each file's identity and failures.",
+            },
             prompt: {
               type: "string",
               description:
@@ -380,8 +400,12 @@ export class VisionTools {
               type: "number",
               description: `Optional max output tokens (default: ${DEFAULT_MAX_TOKENS}).`,
             },
+            max_dimension: {
+              type: "number", minimum: 640, maximum: 2400,
+              description: "Analysis-copy pixel limit (default 1600). Use 960 for slide layout batches; use a source crop or 2400 when fine labels need closer inspection. Original image files are never resized.",
+            },
           },
-          required: ["path"],
+          required: [],
         },
       },
       {
@@ -412,7 +436,7 @@ export class VisionTools {
             pages: {
               type: "string",
               description:
-                'Page range to analyze: "1", "1-3", or "all" (default: "1-2"). Max 5 pages.',
+                'Page range to analyze: "1", "1-3", or "all" (default: "1-2"). Max 5 pages per batch; pages are checked concurrently. For larger documents call consecutive ranges (1-5, 6-10, etc.).',
             },
           },
           required: ["path"],
@@ -422,12 +446,44 @@ export class VisionTools {
   }
 
   async analyzeImage(input: {
-    path: unknown;
+    path?: unknown;
+    paths?: unknown;
     prompt?: unknown;
     provider?: unknown;
     model?: unknown;
     max_tokens?: unknown;
-  }): Promise<
+    max_dimension?: unknown;
+  }, options: { signal?: AbortSignal } = {}) {
+    if (input.paths === undefined) return this.analyzeSingleImage(input, options);
+    if (input.path !== undefined || !Array.isArray(input.paths) || input.paths.length < 1 || input.paths.length > 5 || input.paths.some(p => typeof p !== "string" || !p.trim())) {
+      return { success: false as const, error: "Supply either path or paths (1–5 nonempty image paths)." };
+    }
+    const paths = [...new Set(input.paths as string[])];
+    const images: Array<Awaited<ReturnType<VisionTools["analyzeSingleImage"]>> & { source_path: string }> = [];
+    let next = 0, completed = 0;
+    await Promise.all(Array.from({ length: Math.min(3, paths.length) }, async () => {
+      while (next < paths.length) {
+        const i = next++;
+        try { images[i] = { ...await this.analyzeSingleImage({ ...input, path: paths[i] }, options), source_path: paths[i] }; }
+        catch (error) { images[i] = { success: false, source_path: paths[i], error: error instanceof Error ? error.message : String(error) }; }
+        this.daemon.logEvent(this.taskId, "progress_update", { phase: "visual_review", completed: ++completed, total: paths.length });
+      }
+    }));
+    const failed = images.filter(image => !image.success);
+    return {
+      success: failed.length === 0, images,
+      ...(failed.length ? { error: `${failed.length}/${images.length} images were not verified. Keep successful reviews; retry only failed images after addressing the reported cause.` } : {}),
+    };
+  }
+
+  private async analyzeSingleImage(input: {
+    path?: unknown;
+    prompt?: unknown;
+    provider?: unknown;
+    model?: unknown;
+    max_tokens?: unknown;
+    max_dimension?: unknown;
+  }, options: { signal?: AbortSignal } = {}): Promise<
     | {
         success: true;
         provider: VisionProvider;
@@ -447,6 +503,7 @@ export class VisionTools {
         actionHint?: { type: string; label: string; target: string };
       }
   > {
+    options.signal?.throwIfAborted();
     const relPath = typeof input?.path === "string" ? input.path.trim() : "";
     const prompt =
       typeof input?.prompt === "string" && input.prompt.trim().length > 0
@@ -464,6 +521,8 @@ export class VisionTools {
       Math.max(maxTokensRaw ?? DEFAULT_MAX_TOKENS, 64),
       4096,
     );
+    const maxDimension = typeof input.max_dimension === "number" && Number.isFinite(input.max_dimension)
+      ? Math.min(2400, Math.max(640, Math.round(input.max_dimension))) : 1600;
 
     this.daemon.logEvent(this.taskId, "tool_call", {
       tool: "analyze_image",
@@ -471,6 +530,7 @@ export class VisionTools {
       provider: providerOverride || undefined,
       model: modelOverride || undefined,
       maxTokens,
+      maxDimension,
     });
 
     if (!relPath) {
@@ -567,6 +627,7 @@ export class VisionTools {
       provider: providerOverride || null,
       model: modelOverride || null,
       maxTokens,
+      maxDimension,
     });
     const cached = this.getCachedResult(cacheKey);
     if (cached) {
@@ -580,11 +641,13 @@ export class VisionTools {
     let processedBuffer: Buffer = buffer;
     let mimeType = guessImageMimeType(absPath);
 
-    // Auto-downscale large images to prevent vision API timeouts
-    if (buffer.length > IMAGE_DOWNSCALE_THRESHOLD) {
+    // Compressed byte size says nothing about pixel count (diagrams can be
+    // very tall but tiny PNGs). Bound pixels for every analysis copy; originals
+    // stay untouched for export and high-resolution crops remain available.
+    {
       try {
         const result = await downscaleImage(buffer, mimeType, {
-          maxDimension: 1600,
+          maxDimension,
           quality: 80,
         });
         processedBuffer = result.buffer;
@@ -610,6 +673,7 @@ export class VisionTools {
       providerOverride: providerOverride || undefined,
       modelOverride: modelOverride || undefined,
       toolName: "analyze_image",
+      signal: options.signal,
     });
 
     // Store successful results in cache (keyed by file path + mtime).
@@ -645,6 +709,8 @@ export class VisionTools {
     modelOverride?: string;
     toolName: string;
     emitToolError?: boolean;
+    signal?: AbortSignal;
+    deadline?: number;
   }): Promise<
     | { success: true; provider: VisionProvider; model: string; text: string }
     | {
@@ -669,6 +735,8 @@ export class VisionTools {
     } = args;
 
     const settings = LLMProviderFactory.loadSettings();
+    args.signal?.throwIfAborted();
+    const visionDeadline = Math.min(Date.now() + VISION_REQUEST_BUDGET_MS, args.deadline ?? Infinity);
     let activeRouteError: unknown;
     let activeRouteResolved = false;
 
@@ -706,6 +774,7 @@ export class VisionTools {
             // concise visual answer while keeping the tool call bounded.
             const activeVisionMaxTokens = Math.max(maxTokens, 2_048);
             const response = await requestVisionWithRecovery(activeRoute.provider, {
+              signal: args.signal,
               model: activeModel,
               maxTokens: activeVisionMaxTokens,
               system:
@@ -723,7 +792,7 @@ export class VisionTools {
                   ],
                 },
               ],
-            });
+            }, Math.max(1, visionDeadline - Date.now()));
             const text = (response.content || [])
               .filter(
                 (
@@ -773,7 +842,7 @@ export class VisionTools {
         // GLM-*V, MiniMax/Qwen VL/VLM, etc.). This keeps the task's provider,
         // credentials, and billing boundary intact while giving text models a
         // reliable vision-tool fallback.
-        if (activeRouteError) {
+        if (activeRouteError && !args.signal?.aborted && (activeRouteError as Any)?.code !== "VISION_TIMEOUT" && Date.now() < visionDeadline) {
           let configuredModels: Array<{ key: string }> = [];
           try {
             configuredModels =
@@ -799,12 +868,14 @@ export class VisionTools {
             );
 
           for (const fallbackModel of fallbackModelIds) {
+            if (Date.now() >= visionDeadline) break;
             try {
               const fallbackProvider = LLMProviderFactory.createProvider({
                 type: activeRoute.provider.type,
                 model: fallbackModel,
               });
               const response = await requestVisionWithRecovery(fallbackProvider, {
+                signal: args.signal,
                 model: fallbackModel,
                 maxTokens: Math.max(maxTokens, 2_048),
                 system:
@@ -822,7 +893,7 @@ export class VisionTools {
                     ],
                   },
                 ],
-              });
+              }, Math.max(1, visionDeadline - Date.now()));
               const text = (response.content || [])
                 .filter(
                   (
@@ -1170,7 +1241,7 @@ export class VisionTools {
     prompt?: unknown;
     pages?: unknown;
     provider?: unknown;
-  }): Promise<
+  }, options: { signal?: AbortSignal } = {}): Promise<
     | {
         success: true;
         pages: Array<{ page: number; analysis: string; imagePath?: string; text?: unknown[] }>;
@@ -1178,7 +1249,7 @@ export class VisionTools {
         source_path: string;
         provenance: SensitiveSourceRef;
       }
-    | { success: false; error: string }
+    | { success: false; error: string; pages?: Array<{ page: number; analysis: string; imagePath: string }>; failedPages?: Array<{ page: number; error: string }> }
   > {
     const relPath = typeof input?.path === "string" ? input.path.trim() : "";
     const prompt =
@@ -1276,48 +1347,40 @@ export class VisionTools {
       const results: Array<{ page: number; analysis: string; imagePath: string }> = [];
       const pageFailures: Array<{ page: number; error: string }> = [];
 
-      for (let i = 0; i < pageFiles.length; i++) {
+      let nextPage = 0;
+      let completedPages = 0;
+      const analyzePage = async (i: number) => {
+        const deadline = Date.now() + VISION_REQUEST_BUDGET_MS;
         const pageFile = pageFiles[i];
         const pageNum = firstPage + i;
         const pagePath = path.join(tmpDir, pageFile);
 
-        // Read and optionally downscale the page image
-        let pageBuffer: Buffer = await fs.readFile(pagePath);
-        let pageMime = "image/png";
+        try {
+          options.signal?.throwIfAborted();
+          // Read and optionally downscale the page image
+          let pageBuffer: Buffer = await fs.readFile(pagePath);
+          let pageMime = "image/png";
 
-        if (pageBuffer.length > IMAGE_DOWNSCALE_THRESHOLD) {
-          try {
-            const downscaled = await downscaleImage(pageBuffer, pageMime, {
-              maxDimension: 1600,
-              quality: 80,
-            });
-            pageBuffer = downscaled.buffer;
-            pageMime = downscaled.mimeType;
-          } catch {
-            // Use original if downscale fails
+          {
+            try {
+              const downscaled = await downscaleImage(pageBuffer, pageMime, {
+                maxDimension: 1600,
+                quality: 80,
+              });
+              pageBuffer = downscaled.buffer;
+              pageMime = downscaled.mimeType;
+            } catch {
+              // Use original if downscale fails
+            }
           }
-        }
 
-        const pagePrompt =
-          pageFiles.length > 1
-            ? `Page ${pageNum} of ${lastPage}: ${prompt}`
-            : prompt;
+          const pagePrompt =
+            pageFiles.length > 1
+              ? `Page ${pageNum} of ${lastPage}: ${prompt}`
+              : prompt;
 
-        const pageBase64 = pageBuffer.toString("base64");
-        let analysisResult = await this.analyzeBuffer({
-          base64: pageBase64,
-          mimeType: pageMime,
-          prompt: pagePrompt,
-          maxTokens: 1500,
-          providerOverride,
-          toolName: "read_pdf_visual",
-          emitToolError: false,
-        });
-
-        // Retry once only for transient model/provider failures.
-        if (!analysisResult.success && analysisResult.retryable) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
-          analysisResult = await this.analyzeBuffer({
+          const pageBase64 = pageBuffer.toString("base64");
+          let analysisResult = await this.analyzeBuffer({
             base64: pageBase64,
             mimeType: pageMime,
             prompt: pagePrompt,
@@ -1325,15 +1388,46 @@ export class VisionTools {
             providerOverride,
             toolName: "read_pdf_visual",
             emitToolError: false,
+            signal: options.signal,
+            deadline,
           });
-        }
 
-        if (analysisResult.success) {
-          results.push({ page: pageNum, analysis: analysisResult.text, imagePath: pagePath });
-        } else {
-          pageFailures.push({ page: pageNum, error: analysisResult.error });
+          // Retry once only for transient model/provider failures.
+          if (!analysisResult.success && analysisResult.retryable && !options.signal?.aborted && Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 250));
+            analysisResult = await this.analyzeBuffer({
+              base64: pageBase64,
+              mimeType: pageMime,
+              prompt: pagePrompt,
+              maxTokens: 1500,
+              providerOverride,
+              toolName: "read_pdf_visual",
+              emitToolError: false,
+              signal: options.signal,
+              deadline,
+            });
+          }
+
+          if (analysisResult.success) {
+            results.push({ page: pageNum, analysis: analysisResult.text, imagePath: pagePath });
+          } else {
+            pageFailures.push({ page: pageNum, error: analysisResult.error });
+          }
+        } catch (error) {
+          pageFailures.push({ page: pageNum, error: error instanceof Error ? error.message : String(error) });
         }
-      }
+        completedPages += 1;
+        this.daemon.logEvent(this.taskId, "progress_update", {
+          phase: "visual_review", completed: completedPages, total: pageFiles.length,
+        });
+      };
+      // Bound provider pressure and memory while avoiding a model round trip per
+      // page. Every requested page still receives its own full-image inspection.
+      await Promise.all(Array.from({ length: Math.min(3, pageFiles.length) }, async () => {
+        while (nextPage < pageFiles.length) await analyzePage(nextPage++);
+      }));
+      results.sort((a, b) => a.page - b.page);
+      pageFailures.sort((a, b) => a.page - b.page);
 
       // Requirement: all requested pages must be analyzed successfully.
       // Do not cache partial outputs.
@@ -1347,6 +1441,8 @@ export class VisionTools {
         });
         return {
           success: false,
+          pages: results,
+          failedPages: pageFailures,
           error:
             `Failed to analyze all requested PDF pages (${pageFailures.length}/${pageFiles.length} failed). ` +
             details,

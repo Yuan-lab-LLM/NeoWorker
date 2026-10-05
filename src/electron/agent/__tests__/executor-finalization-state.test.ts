@@ -91,6 +91,18 @@ function createExecutorForFinalization(overrides: Partial<Any> = {}): Any {
 }
 
 describe("TaskExecutor terminal finalization state", () => {
+  it("does not call a failed Studio build verified when finalizing best effort", () => {
+    const executor = createExecutorForFinalization();
+    executor.finalizePresentationArtifactDelivery = vi.fn(() => {
+      executor.presentationDeliveryRejectionReason = "Build QA failed";
+      return null;
+    });
+    (TaskExecutor as Any).prototype.finalizeTaskBestEffort.call(executor, "Complete and verified.", "runtime completed");
+    expect(executor.task.terminalStatus).toBe("partial_success");
+    expect(executor.task.failureClass).toBe("contract_error");
+    expect(executor.task.resultSummary).not.toContain("Complete and verified");
+    expect(executor.task.resultSummary).toContain("草稿");
+  });
   it("scopes best-effort external-runtime outputs to the current follow-up", () => {
     const executor = createExecutorForFinalization();
 

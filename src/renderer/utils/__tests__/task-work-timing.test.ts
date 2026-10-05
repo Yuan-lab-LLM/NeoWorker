@@ -3,6 +3,7 @@ import type { Task, TaskEvent } from "../../../shared/types";
 import { normalizeEventsForTimelineUi } from "../timeline-projection";
 import {
   deriveTaskWorkTiming,
+  markTaskStopRequested,
   isTerminalWorkEvent,
   shouldEndOptimisticFollowUp,
   shouldEndOptimisticFollowUpFromTask,
@@ -25,6 +26,16 @@ const event = (type: string, timestamp: number, payload = {}) =>
   }) as TaskEvent;
 
 describe("current turn timing", () => {
+  it("does not resurrect stopped work from an earlier user message", () => {
+    const stopped = markTaskStopRequested({ ...task, status: "executing", completedAt: undefined }, 4000);
+    expect(deriveTaskWorkTiming(stopped, [event("user_message", 3000)], false).isActive).toBe(false);
+  });
+  it.each(["log", "assistant_message", "hermes_runtime_transport"])("does not resurrect finished work from a canonical %s envelope", (legacyType) => {
+    const stream = [event("user_message", 3000), event("task_completed", 4000),
+      event("timeline_step_updated", 5000, { legacyType })];
+    expect(deriveTaskWorkTiming({ ...task, status: "executing", completedAt: undefined }, stream, false))
+      .toMatchObject({ isActive: false, completedAt: 4000 });
+  });
   it.each([false, true])("keeps the follow-up clock through automatic approval (projected=%s)", (projected) => {
     const stream = [
       event("task_completed", 2000),

@@ -5,13 +5,13 @@ const BATCH_SIZE = 12;
 const keyFor = (item: PaperNewsItem) =>
   JSON.stringify([item.id, item.url, item.imageUrl, item.date, item.title]);
 
-/** Resolve a bounded batch before admitting cards to the image-only view. */
-export function useNewsImageGallery(items: PaperNewsItem[], enabled: boolean) {
-  const candidates = items.filter((item) => hasNewsImages(item.source));
+/** Resolve publisher images with bounded concurrency; inline mode keeps all articles in the parent list. */
+export function useNewsImageGallery(items: PaperNewsItem[], enabled: boolean, mode: "gallery" | "inline" = "gallery") {
+  const candidates = mode === "inline" ? items : items.filter((item) => hasNewsImages(item.source));
   const scope = JSON.stringify(candidates.map(keyFor));
   const [page, setPage] = useState({ scope, limit: BATCH_SIZE });
   const limit = page.scope === scope ? page.limit : BATCH_SIZE;
-  const batch = candidates.slice(0, limit);
+  const batch = mode === "inline" ? candidates : candidates.slice(0, limit);
   const cache = useRef(new Map<string, PaperNewsCover | null>());
   const pending = useRef(new Set<string>());
   const mounted = useRef(false);
@@ -20,7 +20,7 @@ export function useNewsImageGallery(items: PaperNewsItem[], enabled: boolean) {
   current.current = { batch, enabled };
   const pump = useRef<() => void>(() => {});
   pump.current = () => {
-    if (!mounted.current || !current.current.enabled) return;
+    if (!mounted.current || !current.current.enabled || !window.electronAPI?.getPaperNewsCover) return;
     for (const item of current.current.batch) {
       if (pending.current.size >= 2) break;
       const key = keyFor(item);
@@ -29,7 +29,7 @@ export function useNewsImageGallery(items: PaperNewsItem[], enabled: boolean) {
       void window.electronAPI
         .getPaperNewsCover(item.id)
         .then((cover) =>
-          cache.current.set(key, cover?.kind === "source-image" ? cover : null),
+          cache.current.set(key, cover?.kind === "source-image" || cover?.kind === "pdf-page" ? cover : null),
         )
         .catch(() => cache.current.set(key, null))
         .finally(() => {
@@ -49,14 +49,19 @@ export function useNewsImageGallery(items: PaperNewsItem[], enabled: boolean) {
   }, []);
   useEffect(() => {
     pump.current();
-  }, [enabled, scope, limit]);
+  }, [enabled, scope, limit, mode]);
   const checked = batch.filter((item) =>
     cache.current.has(keyFor(item)),
   ).length;
+  const coverFor = (item: PaperNewsItem) => {
+    const cover = cache.current.get(keyFor(item));
+    return cover && (mode === "inline" || cover.kind === "source-image") ? cover : null;
+  };
   return {
     revision,
-    items: batch.filter((item) => Boolean(cache.current.get(keyFor(item)))),
-    cover: (item: PaperNewsItem) => cache.current.get(keyFor(item)) || null,
+    items: batch.filter((item) => Boolean(coverFor(item))),
+    cover: coverFor,
+    loading: (item: PaperNewsItem) => enabled && Boolean(window.electronAPI?.getPaperNewsCover) && !cache.current.has(keyFor(item)),
     reject: (item: PaperNewsItem) => {
       cache.current.set(keyFor(item), null);
       update((n) => n + 1);

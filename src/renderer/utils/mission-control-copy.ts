@@ -1,3 +1,4 @@
+import { getLocalizedSubagentDisplay } from "./localized-agent-roles";
 import { getCurrentLanguage } from "../i18n";
 
 const ZH_ROUTINE_TITLES: Record<string, string> = {
@@ -44,6 +45,12 @@ function extractUserRequest(prompt: string): string {
 /** Hide managed-agent engine context and show only the actual user request. */
 export function getManagedAgentPromptForDisplay(prompt: string): string {
   const normalized = prompt.replace(/\r\n/g, "\n").trim();
+  // Historical team tasks stored their engine scaffold as the first message.
+  // Peel only the exact app-generated envelope; preserve user-authored text.
+  if (/^You are part of the (?:multitask )?team "/.test(normalized)) {
+    const section = normalized.match(/(?:TASK FOR INDEPENDENT ANALYSIS|ROOT TASK CONTEXT):\nTitle: [^\n]*\n([\s\S]*?)(?:\n\n(?:YOUR ASSIGNMENT:|YOUR MULTITASK LANE:|Analyze this task from your area of expertise\.))/);
+    if (section?.[1]) return section[1].trim();
+  }
   const marker = "\nUser request:\n";
   const requestStart = normalized.lastIndexOf(marker);
   const isManagedPrompt =
@@ -68,6 +75,9 @@ export function getManagedAgentPromptForDisplay(prompt: string): string {
 /** Localize titles created by older managed-agent runs without mutating history. */
 export function getManagedAgentTaskTitleForDisplay(title: string): string {
   if (getCurrentLanguage() !== "zh-CN") return title;
+  if (/\((?:builder|inspector|explorer|planner|designer|writer|synthesizer|agent)\)\s*$/.test(title) || title === "Synthesis") {
+    return getLocalizedSubagentDisplay(title).name;
+  }
   const localizedSuffix = title
     .replace(/\s+agent test$/i, " 智能体测试")
     .replace(/\s+agent run$/i, " 智能体运行")

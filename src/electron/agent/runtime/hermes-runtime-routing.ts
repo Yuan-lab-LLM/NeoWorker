@@ -41,11 +41,7 @@ const COMPLEX_WORK_INTENTS = new Set<IntentRoute["intent"]>([
   "deep_work",
 ]);
 
-const HERMES_DOMAINS = new Set<TaskDomain>([
-  "code",
-  "research",
-  "operations",
-]);
+const HERMES_DOMAINS = new Set<TaskDomain>(["code", "research", "operations"]);
 
 const OFFICE_SIGNAL =
   /(?:\b(?:docx?|word|pdf|pptx?|powerpoint|presentation|slide\s+deck|xlsx?|excel|spreadsheet|workbook)\b|文档|报告|演示文稿|幻灯片|表格|台账|工作簿)/i;
@@ -71,9 +67,7 @@ function runtimeAgentOf(
   return runtime?.agent;
 }
 
-function normalizePreference(
-  preference: TaskRuntimePreference | undefined,
-): TaskRuntimePreference {
+function normalizePreference(preference: TaskRuntimePreference | undefined): TaskRuntimePreference {
   return preference === "hermes" || preference === "native" ? preference : "auto";
 }
 
@@ -84,8 +78,7 @@ function isComplexHermesCandidate(input: TaskRuntimeRoutingInput): {
   const text = `${String(input.title || "")}\n${String(input.prompt || "")}`.trim();
   const signals: string[] = [];
   const complexIntent = COMPLEX_WORK_INTENTS.has(input.route.intent);
-  const officeCandidate =
-    OFFICE_SIGNAL.test(text) && MUTATION_SIGNAL.test(text);
+  const officeCandidate = OFFICE_SIGNAL.test(text) && MUTATION_SIGNAL.test(text);
   const codeCandidate =
     CODE_WORK_SIGNAL.test(text) &&
     (MUTATION_SIGNAL.test(text) ||
@@ -123,8 +116,7 @@ function isComplexHermesCandidate(input: TaskRuntimeRoutingInput): {
     (input.route.signals.includes("needs-tool-inspection") ||
       input.route.complexity !== "low" ||
       input.strategy.taskDomain === "research");
-  const workflowCandidate =
-    input.route.intent === "workflow" || input.route.intent === "deep_work";
+  const workflowCandidate = input.route.intent === "workflow" || input.route.intent === "deep_work";
   const highComplexityCandidate =
     input.route.complexity === "high" &&
     input.strategy.executionMode !== "chat" &&
@@ -134,7 +126,9 @@ function isComplexHermesCandidate(input: TaskRuntimeRoutingInput): {
   // A single, plain question remains native even if a broad keyword happens
   // to match. The exception is a structured lookup such as a flight search.
   const isPlainLookup =
-    SIMPLE_LOOKUP_SIGNAL.test(text) && !OFFICE_SIGNAL.test(text) && !STRUCTURED_WEB_SIGNAL.test(text);
+    SIMPLE_LOOKUP_SIGNAL.test(text) &&
+    !OFFICE_SIGNAL.test(text) &&
+    !STRUCTURED_WEB_SIGNAL.test(text);
 
   return {
     selected:
@@ -150,9 +144,7 @@ function isComplexHermesCandidate(input: TaskRuntimeRoutingInput): {
   };
 }
 
-export function resolveTaskRuntimeRoute(
-  input: TaskRuntimeRoutingInput,
-): TaskRuntimeRouteDecision {
+export function resolveTaskRuntimeRoute(input: TaskRuntimeRoutingInput): TaskRuntimeRouteDecision {
   const preference = normalizePreference(input.agentConfig?.runtimePreference);
   const existingRuntime = input.agentConfig?.externalRuntime;
   const explicitPreference = input.agentConfig?.runtimePreference;
@@ -209,11 +201,7 @@ export function resolveTaskRuntimeRoute(
   // Existing ACP configs are already an explicit runtime decision (for
   // example an explicitly spawned Claude task). Preserve them unless the
   // user explicitly chooses Hermes or Native in the task composer.
-  if (
-    existingRuntime &&
-    explicitPreference !== "hermes" &&
-    explicitPreference !== "native"
-  ) {
+  if (existingRuntime && explicitPreference !== "hermes" && explicitPreference !== "native") {
     return {
       preference,
       resolved: "external",
@@ -261,4 +249,29 @@ export function buildHermesExternalRuntimeConfig(
     outputMode: "json",
     permissionMode: runtimePermission,
   };
+}
+
+/** Keep delegated work on the parent's transport; never copy an ACP session id. */
+export function inheritChildRuntimeConfig(parent?: AgentConfig, child?: AgentConfig): AgentConfig {
+  const next: AgentConfig = {
+    ...(parent?.providerType ? { providerType: parent.providerType } : {}),
+    ...(parent?.modelKey && (!child?.providerType || child.providerType === parent?.providerType)
+      ? { modelKey: parent.modelKey }
+      : {}),
+    ...child,
+  };
+  if (!child?.externalRuntime && !child?.runtimePreference) {
+    next.runtimePreference =
+      parent?.externalRuntime?.agent === "hermes"
+        ? "hermes"
+        : parent?.runtimePreference === "native"
+          ? "native"
+          : "hermes";
+    if (next.runtimePreference === "hermes") {
+      next.externalRuntime = buildHermesExternalRuntimeConfig(
+        next.permissionMode ?? parent?.permissionMode,
+      );
+    }
+  }
+  return next;
 }

@@ -58,6 +58,8 @@ beforeEach(() => {
     id: 7,
     mainFrame: {},
     getZoomFactor: () => 2,
+    isDestroyed: () => false,
+    send: vi.fn(),
   });
   mocks.guest = Object.assign(new EventEmitter(), {
     id: 10,
@@ -65,6 +67,7 @@ beforeEach(() => {
     getURL: () => request.url,
     getTitle: () => "Paper",
     isDestroyed: () => false,
+    mainFrame: { framesInSubtree: [], executeJavaScript: vi.fn(async () => null) },
     executeJavaScript: vi.fn(async () => ({
       title: "Paper",
       blocks: [{ id: "段落1", text: "Source text" }],
@@ -213,5 +216,21 @@ describe("PDF selection probing", () => {
       ],
     };
     expect(await probe()).toBeNull();
+  });
+});
+
+describe("HTML selection probing", () => {
+  it("reads the owned live frame and registers release notifications only once", async () => {
+    mocks.guest.mainFrame.executeJavaScript.mockResolvedValue({ text: "Selected paragraph", x: 40, y: 90 });
+    const probe = () => mocks.handlers.get(READING_CHANNELS.probeSelection)!(event(), request);
+    expect(await probe()).toMatchObject({ text: "Selected paragraph", coordinateSpace: "guest" });
+    await probe();
+    expect(mocks.guest.listenerCount("before-mouse-event")).toBe(1);
+    expect(mocks.guest.executeJavaScript).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
+    mocks.guest.hostWebContents = {};
+    await expect(probe()).rejects.toThrow("尚未就绪");
+    mocks.sender.emit("destroyed");
+    expect(mocks.guest.listenerCount("before-mouse-event")).toBe(0);
   });
 });

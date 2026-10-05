@@ -1,6 +1,6 @@
 {
   "name": "neoworker",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "NeoWorker - GUI-first, CLI-capable local AI super app and everything app for coding, email, agents, documents, spreadsheets, presentations, web design, automations, and agentic work",
   "main": "dist/electron/electron/main.js",
   "author": "Yuan-lab-LLM",
@@ -57,7 +57,7 @@
     "build:healthkit-bridge": "node scripts/build_healthkit_bridge.mjs",
     "build:location-helper-macos": "node scripts/build_location_helper_macos.mjs",
     "build:location-helpers": "node scripts/copy_location_helpers.mjs",
-    "build": "npm run clean:dist && npm run build:react && npm run build:healthkit-bridge && npm run build:location-helper-macos && npm run build:location-helpers && npm run build:electron && npm run build:daemon && npm run build:cli",
+    "build": "npm run clean:dist && npm run build:connectors && npm run build:react && npm run build:healthkit-bridge && npm run build:location-helper-macos && npm run build:location-helpers && npm run build:electron && npm run build:daemon && npm run build:cli",
     "build:with-numbat": "npm run numbat:build && npm run build",
     "numbat:build": "node scripts/build_numbat_runtime.mjs",
     "numbat:verify": "node scripts/build_numbat_runtime.mjs --verify-only",
@@ -223,6 +223,7 @@
   },
   "build": {
     "appId": "com.neoworker.app",
+    "afterPack": "scripts/verify-bundled-connectors.mjs",
     "productName": "NeoWorker",
     "directories": {
       "output": "release"
@@ -246,6 +247,7 @@
           "**/*.json",
           "**/SKILL.md",
           "**/LICENSE.txt",
+          "**/THIRD_PARTY_NOTICES.md",
           "**/references/**",
           "**/assets/**",
           "**/scripts/**",
@@ -396,6 +398,28 @@
       "owner": "Yuan-lab-LLM",
       "repo": "NeoWorker",
       "releaseType": "release"
-    }
+    },
+    "asarUnpack": [
+      "node_modules/pptxgenjs/**/*",
+      "node_modules/jszip/**/*",
+      "node_modules/https/**/*",
+      "node_modules/image-size/**/*",
+      "node_modules/queue/**/*",
+      "node_modules/inherits/**/*",
+      "node_modules/lie/**/*",
+      "node_modules/immediate/**/*",
+      "node_modules/pako/**/*",
+      "node_modules/readable-stream/**/*",
+      "node_modules/core-util-is/**/*",
+      "node_modules/isarray/**/*",
+      "node_modules/process-nextick-args/**/*",
+      "node_modules/safe-buffer/**/*",
+      "node_modules/string_decoder/**/*",
+      "node_modules/util-deprecate/**/*",
+      "node_modules/setimmediate/**/*",
+      "node_modules/@xmldom/xmldom/**/*",
+      "node_modules/@napi-rs/canvas*/**/*",
+      "node_modules/pdfjs-dist/**/*"
+    ]
   }
 }

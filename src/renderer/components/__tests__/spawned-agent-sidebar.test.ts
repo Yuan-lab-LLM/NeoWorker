@@ -40,8 +40,7 @@ function renderSidebar(props: {
   const workspace = { id: "workspace-1", path: "/tmp/workspace" } as Workspace;
   return renderToStaticMarkup(
     React.createElement(SpawnedAgentSidebar, {
-      parentTask:
-        props.parentTask ?? ({ id: "parent-1", title: "Parent task" } as Task),
+      parentTask: props.parentTask ?? ({ id: "parent-1", title: "Parent task" } as Task),
       childTasks: props.childTasks,
       childEvents: props.childEvents ?? [],
       selectedTaskId: props.selectedTaskId ?? props.childTasks[0]?.id ?? null,
@@ -64,12 +63,9 @@ describe("SpawnedAgentSidebar", () => {
     const first = makeTask("child-1");
     const second = makeTask("child-2");
 
-    expect(resolveSpawnedAgentSidebarTask([first, second], "child-2")?.id).toBe(
-      "child-2",
-    );
-    expect(resolveSpawnedAgentSidebarTask([first, second], "missing")?.id).toBe(
-      "child-1",
-    );
+    expect(resolveSpawnedAgentSidebarTask([first, second], "child-2")?.id).toBe("child-2");
+    expect(resolveSpawnedAgentSidebarTask([first, second], "missing")).toBeNull();
+    expect(resolveSpawnedAgentSidebarTask([first, second], null)?.id).toBe("child-1");
     expect(resolveSpawnedAgentSidebarTask([], "child-1")).toBeNull();
   });
 
@@ -87,10 +83,7 @@ describe("SpawnedAgentSidebar", () => {
 
   it("renders switchable tabs for multiple spawned agents", () => {
     const markup = renderSidebar({
-      childTasks: [
-        makeTask("child-1"),
-        makeTask("child-2", { status: "completed" }),
-      ],
+      childTasks: [makeTask("child-1"), makeTask("child-2", { status: "completed" })],
       selectedTaskId: "child-2",
     });
 
@@ -111,6 +104,21 @@ describe("SpawnedAgentSidebar", () => {
     expect(markup).toContain("演示稿/备忘录撰写员");
     expect(markup).toContain("审核/质检员");
   });
+
+  it.each([
+    { status: "completed", terminalStatus: "partial_success" },
+    { status: "cancelled" },
+    { status: "interrupted" },
+  ] as Partial<Task>[])(
+    "does not show success or running icons for $status/$terminalStatus",
+    (outcome) => {
+      const markup = renderSidebar({
+        childTasks: [makeTask("child-1", outcome), makeTask("child-2", { status: "failed" })],
+      });
+      expect(markup).not.toContain("lucide-check");
+      expect(markup).not.toContain("spinning");
+    },
+  );
 
   it("shows generated callsigns as Chinese expert roles", () => {
     const markup = renderSidebar({

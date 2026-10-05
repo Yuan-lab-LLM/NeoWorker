@@ -2,6 +2,7 @@ import { ReadingNotesList } from "./ReadingNotesLibrary";
 import { loadReadingNotes, persistNotes } from "./reading-notes-store";
 import { PanelResizeHandle, usePanelWidth } from "./PanelResizeHandle";
 import { readingToolbarPosition } from "./reading-toolbar-position";
+import { browserSelectionProbe } from "./browser-selection-probe";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   ArrowUp,
@@ -28,19 +29,6 @@ import "./browser-reading.css";
 function sourceKey(url: string) {
   return url.split("#")[0];
 }
-// Chromium PDF selection is probed through the owned viewer in the main process.
-// HTML pages also support a lightweight selection probe; never send it to a model automatically.
-function selectionProbe() {
-  if (
-    document.activeElement?.matches("input,textarea,[contenteditable='true']")
-  )
-    return null;
-  const selection = window.getSelection();
-  const text = selection?.toString().trim();
-  if (!text || !selection?.rangeCount || text.length > 12000) return null;
-  const rect = selection.getRangeAt(0).getBoundingClientRect();
-  return { text, x: rect.left + Math.min(rect.width / 2, 160), y: rect.bottom };
-}
 interface Guest {
   executeJavaScript: (code: string) => Promise<unknown>;
   addEventListener: (name: string, listener: (event: any) => void) => void;
@@ -48,6 +36,7 @@ interface Guest {
   findInPage: (text: string) => void;
   loadURL: (url: string) => void;
   getBoundingClientRect: () => DOMRect;
+  getWebContentsId?: () => number;
 }
 interface Props {
   taskId: string;
@@ -130,8 +119,7 @@ export function BrowserReadingAssistant({
   useEffect(() => {
     const guest = webviewRef.current;
     if (!guest) return;
-    let live = true,
-      probing = false;
+    let live = true, probing = false, generation = 0;
     const offer = (value: Selection | null) => {
       if (!live || requestRef.current) return;
       if (!value) {
@@ -148,10 +136,11 @@ export function BrowserReadingAssistant({
           setSelection(null);
           return;
         }
-        setSelection({
+        const next = {
           ...value,
           ...readingToolbarPosition(x, y, bounds.width, bounds.height),
-        });
+        };
+        setSelection(previous => previous?.text === next.text && previous.x === next.x && previous.y === next.y ? previous : next);
       }
     };
     const contextMenu = (event: {
@@ -171,6 +160,14 @@ export function BrowserReadingAssistant({
     guest.addEventListener("context-menu", contextMenu);
     const unsubscribe = window.electronAPI.onBrowserReadingSelection?.(
       (data) => {
+        if (data.coordinateSpace === "guest") {
+          // Match the actual webview, including two tabs showing the same URL.
+          if (data.webContentsId !== guest.getWebContentsId?.() || sourceKey(data.pageURL) !== sourceKey(url)) return;
+          generation++;
+          probing = false;
+          offer(data.text ? data : null);
+          return;
+        }
         if (
           !pdf ||
           (sourceKey(data.pageURL) !== sourceKey(url) &&
@@ -196,35 +193,40 @@ export function BrowserReadingAssistant({
         });
       },
     );
-    const timer = setInterval(
-      async () => {
+    const probe = async () => {
         if (probing || document.hidden) return;
         probing = true;
+        const current = generation;
         try {
-          offer(
-            pdf
+          const value =
+            window.electronAPI.getBrowserReadingSelection
               ? ((await window.electronAPI.getBrowserReadingSelection?.({
                   taskId,
                   sessionId,
                   url,
                 })) ?? null)
               : ((await guest.executeJavaScript(
-                  `(${selectionProbe.toString()})()`,
-                )) as Selection | null),
-          );
+                  `(${browserSelectionProbe.toString()})()`,
+                )) as Selection | null);
+          if (current === generation) offer(value);
         } catch {
           /* Loading or restricted guest. */
         } finally {
-          probing = false;
+          if (current === generation) probing = false;
         }
-      },
-      pdf ? 250 : 750,
-    );
+    };
+    // A probe started while a guest is navigating can wait for the previous
+    // document indefinitely. Re-arm on readiness and ignore its late result.
+    const rearm = () => { generation++; probing = false; void probe(); };
+    guest.addEventListener("dom-ready", rearm);
+    void probe();
+    const timer = setInterval(probe, pdf ? 250 : 300);
     return () => {
       live = false;
       clearInterval(timer);
       unsubscribe?.();
       guest.removeEventListener("context-menu", contextMenu);
+      guest.removeEventListener("dom-ready", rearm);
     };
   }, [webviewRef, pdf, ready, taskId, sessionId, url]);
 
@@ -329,6 +331,7 @@ export function BrowserReadingAssistant({
       {selection && (
         <div
           className="br-selection-tools"
+          onMouseDown={event => event.preventDefault()}
           style={{
             left: Math.max(12, selection.x),
             top: selection.y,

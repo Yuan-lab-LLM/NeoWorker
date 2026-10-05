@@ -466,7 +466,7 @@ export function buildCompletionGuidancePrompt(opts: {
     );
     if (officeExtensions.length > 0) {
       lines.push(
-        "- Office tools are built into NeoWorker; call the named create/generate tools directly. They are not localhost HTTP services, so never probe guessed ports or an /officecli endpoint and never report them unavailable based on a prior analysis step.",
+        "- Office tools and presentation workflows are built into NeoWorker. They are not localhost HTTP services, so never probe guessed ports or an /officecli endpoint and never report them unavailable based on a prior analysis step. Follow the active artifact workflow.",
       );
     }
     if (opts.explicitOutputExtensions.includes(".docx")) {
@@ -481,7 +481,7 @@ export function buildCompletionGuidancePrompt(opts: {
     }
     if (opts.explicitOutputExtensions.includes(".pptx")) {
       lines.push(
-        "- For PowerPoint output, use create_presentation (or generate_presentation when that is the exposed alias) and deliver exactly one final .pptx file.",
+        "- For PowerPoint output, follow the active presentation skill (Presentation Studio by default), compile its source project, and deliver the exact PPTX published by its successful build/QA report. Do not replace the active workflow with legacy create_presentation/generate_presentation quick templates or a rejected private build candidate.",
       );
     }
     if (opts.explicitOutputExtensions.includes(".xlsx")) {

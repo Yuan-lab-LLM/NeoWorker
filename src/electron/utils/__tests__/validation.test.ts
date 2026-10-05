@@ -278,6 +278,15 @@ describe("TaskCreateSchema", () => {
     expect(invalid.success).toBe(false);
   });
 
+  it("retains typed skill form values through create and follow-up validation", () => {
+    const requestedSkillParameters = { brand: "Q", docLanguage: "英文", count: 0, overwrite: false, path: "/tmp/审校.docx" };
+    const created = TaskCreateSchema.parse({ title: "审校", prompt: "审校附件", workspaceId: "__temp_workspace__", agentConfig: { requestedSkillId: "writing-standard", requestedSkillParameters } });
+    const continued = TaskMessageSchema.parse({ taskId: "550e8400-e29b-41d4-a716-446655440000", message: "继续审校", requestedSkillId: "writing-standard", requestedSkillParameters });
+    expect(created.agentConfig?.requestedSkillParameters).toEqual(requestedSkillParameters);
+    expect(continued.requestedSkillParameters).toEqual(requestedSkillParameters);
+    expect(TaskMessageSchema.safeParse({ ...continued, requestedSkillParameters: { brand: { value: "Q" } } }).success).toBe(false);
+  });
+
   it("accepts a requested Ideas skill in agentConfig", () => {
     const result = TaskCreateSchema.safeParse({
       title: "Compare two files",

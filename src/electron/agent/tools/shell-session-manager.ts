@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as fsPromises from "fs/promises";
 import * as path from "path";
 import { execFileSync, spawn, type ChildProcess } from "child_process";
+import { stdioEnvironment } from "../../mcp/client/transports/stdio-environment";
 import { getUserDataDir } from "../../utils/user-data-dir";
 import type {
   CommandTerminationReason,
@@ -592,9 +593,7 @@ export function buildPersistentShellEnvironment(
     PS1: isTerminalTab ? "\\w % " : "",
     PS2: isTerminalTab ? "> " : "",
     PROMPT_COMMAND: "",
-    PATH:
-      readEnvironmentValue(sourceEnv, "PATH") ||
-      "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    PATH: stdioEnvironment(sourceEnv, {}, platform, readEnvironmentValue(sourceEnv, "HOME")).PATH,
     LANG: readEnvironmentValue(sourceEnv, "LANG") || "en_US.UTF-8",
     TERM: readEnvironmentValue(sourceEnv, "TERM") || "xterm-256color",
   };

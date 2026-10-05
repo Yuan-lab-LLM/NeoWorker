@@ -162,3 +162,51 @@ describe("reading workspace controls", () => {
     ).toHaveLength(0);
   });
 });
+
+describe('selection toolbar recovery', () => {
+  it('opens on the owned guest release event even while a poll is pending, and ignores a second tab with the same URL', async () => {
+    vi.stubGlobal('document', {hidden:false});
+    let notify!: (event: any) => void;
+    let finishPoll!: (value: unknown) => void;
+    window.electronAPI.getBrowserReadingSelection = vi.fn(() => new Promise(resolve => { finishPoll = resolve; })) as any;
+    window.electronAPI.onBrowserReadingSelection = ((callback: any) => { notify = callback; return () => {}; }) as any;
+    const guest = {getWebContentsId:()=>7, executeJavaScript:vi.fn(), getBoundingClientRect:()=>({left:0,top:0,width:900,height:600}),
+      addEventListener:vi.fn(),removeEventListener:vi.fn(),findInPage:vi.fn(),loadURL:vi.fn()};
+    await act(async()=>{ renderer = create(React.createElement(BrowserReadingAssistant,{...props,open:false,webviewRef:{current:guest as any}})); });
+    const released = {webContentsId:7,coordinateSpace:'guest',pageURL:props.url,frameURL:props.url,text:'Released selection',x:200,y:450};
+    await act(async()=>notify({...released,webContentsId:8}));
+    expect(renderer!.root.findAllByProps({role:'toolbar'})).toHaveLength(0);
+    await act(async()=>notify(released));
+    expect(renderer!.root.findAllByProps({role:'toolbar'})).toHaveLength(1);
+    await act(async()=>finishPoll(null));
+    expect(renderer!.root.findAllByProps({role:'toolbar'})).toHaveLength(1);
+    expect(ask).not.toHaveBeenCalled();
+  });
+  it('recovers a stalled navigation probe and ignores its late result', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('document', {hidden:false});
+      const listeners = new Map<string, (...args: any[]) => void>();
+      let oldResult!: (value: unknown) => void;
+      const executeJavaScript = vi.fn()
+        .mockImplementationOnce(() => new Promise(resolve => { oldResult = resolve; }))
+        .mockResolvedValue({text:'Selected article evidence',x:200,y:450});
+      const guest = {executeJavaScript, getBoundingClientRect:()=>({left:0,top:0,right:900,bottom:600,width:900,height:600}),
+        addEventListener:(name:string,fn:any)=>listeners.set(name,fn),removeEventListener:vi.fn(),findInPage:vi.fn(),loadURL:vi.fn()};
+      await act(async()=>{ renderer = create(React.createElement(BrowserReadingAssistant,{...props,open:false,webviewRef:{current:guest as any}})); });
+      await act(async()=>{ await vi.advanceTimersByTimeAsync(300); });
+      expect(executeJavaScript).toHaveBeenCalledOnce();
+      await act(async()=>listeners.get('dom-ready')!());
+      expect(renderer!.root.findAllByProps({role:'toolbar'})).toHaveLength(1);
+      await act(async()=>oldResult(null));
+      expect(renderer!.root.findAllByProps({role:'toolbar'})).toHaveLength(1);
+      expect(ask).not.toHaveBeenCalled();
+      const preventDefault=vi.fn();
+      renderer!.root.findByProps({role:'toolbar'}).props.onMouseDown({preventDefault});
+      expect(preventDefault).toHaveBeenCalledOnce();
+      await act(async()=>button('提问').props.onClick());
+      expect(props.onOpen).toHaveBeenCalledWith(true);
+      expect(renderer!.root.findAllByProps({role:'toolbar'})).toHaveLength(0);
+    } finally { vi.useRealTimers(); }
+  });
+});

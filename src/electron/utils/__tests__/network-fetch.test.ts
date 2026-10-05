@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createNetworkFetch, isProxyConnectionFailure } from "../network-fetch";
+import { createNetworkFetch, isProxyConnectionFailure, sessionFetch } from "../network-fetch";
+import { EventEmitter } from "node:events";
+import { readPaperNewsResponse } from "../../paper-news/service";
 
 const proxyError = () => new Error("net::ERR_PROXY_CONNECTION_FAILED");
 const setup = () => {
@@ -91,5 +93,75 @@ describe("system proxy failure recovery", () => {
 
   it("recognizes the nested Chromium error", () => {
     expect(isProxyConnectionFailure(new Error("fetch failed", { cause: { code: "ERR_PROXY_CONNECTION_FAILED" } }))).toBe(true);
+  });
+});
+
+describe("Electron manual-redirect response streaming", () => {
+  function setupStream() {
+    const request = Object.assign(new EventEmitter(), { abort: vi.fn(), end: vi.fn() });
+    const incoming = Object.assign(new EventEmitter(), {
+      statusCode: 200, statusMessage: "OK", headers: { "content-type": "text/plain" },
+    });
+    const electron = { net: { request: () => request } } as unknown as typeof import("electron");
+    return { request, incoming, fetch: sessionFetch(electron, {} as Electron.Session) };
+  }
+  it("returns headers before the body finishes, and cancels oversized news immediately", async () => {
+    const { request, incoming, fetch } = setupStream();
+    const pending = fetch("https://example.com", { redirect: "manual" });
+    incoming.headers = { "content-type": "text/plain" };
+    request.emit("response", incoming);
+    const response = await pending;
+    const reading = readPaperNewsResponse(response, 4);
+    const rejected = expect(reading).rejects.toThrow("invalidResponse");
+    incoming.emit("data", Buffer.from("too large"));
+    await rejected;
+    expect(request.abort).toHaveBeenCalledOnce();
+    // Late data after cancellation must not accumulate or throw.
+    incoming.emit("data", Buffer.from("ignored"));
+    incoming.emit("end");
+  });
+  it("keeps the abort signal attached while reading a stalled body", async () => {
+    const { request, incoming, fetch } = setupStream();
+    const controller = new AbortController();
+    const pending = fetch("https://example.com", { redirect: "manual", signal: controller.signal });
+    request.emit("response", incoming);
+    const reading = (await pending).text();
+    const rejected = expect(reading).rejects.toThrow("deadline");
+    controller.abort(new Error("deadline"));
+    await rejected;
+    expect(request.abort).toHaveBeenCalledOnce();
+  });
+  it("bounds an unread body instead of buffering an unlimited response", async () => {
+    const { request, incoming, fetch } = setupStream();
+    const pending = fetch("https://example.com", { redirect: "manual" });
+    request.emit("response", incoming);
+    const response = await pending;
+    const chunk = Buffer.alloc(1024 * 1024);
+    for (let i = 0; i < 17; i++) incoming.emit("data", chunk);
+    await expect(response.text()).rejects.toThrow("buffer limit");
+    expect(request.abort).toHaveBeenCalledOnce();
+  });
+  it("streams complete text and removes abort handling at EOF", async () => {
+    const { request, incoming, fetch } = setupStream();
+    const controller = new AbortController();
+    const pending = fetch("https://example.com", { redirect: "manual", signal: controller.signal });
+    request.emit("response", incoming);
+    const reading = (await pending).text();
+    incoming.emit("data", Buffer.from("hello "));
+    incoming.emit("data", Buffer.from("world"));
+    incoming.emit("end");
+    expect(await reading).toBe("hello world");
+    controller.abort();
+    expect(request.abort).not.toHaveBeenCalled();
+  });
+  it("returns an unchecked redirect without following its destination", async () => {
+    const { request, fetch } = setupStream();
+    const pending = fetch("https://example.com", { redirect: "manual" });
+    request.emit("redirect", 302, "GET", "https://other.example", {});
+    const response = await pending;
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("https://other.example");
+    expect(response.body).toBeNull();
+    expect(request.abort).toHaveBeenCalledOnce();
   });
 });

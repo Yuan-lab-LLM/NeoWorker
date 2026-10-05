@@ -18,6 +18,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  }
  switch(method) {
  case 'initialize':
+   if (process.env.NEOWORKER_TEST_HANG_INITIALIZE === '1') break;
    process.stderr.write('x'.repeat(512*1024), () => result(id, {protocolVersion:1, agentInfo:{name:'hermes-agent', version:'fixture'}, agentCapabilities:{loadSession:true}}));
    break;
  case 'session/new': mcpServers = params.mcpServers || []; result(id, {sessionId}); break;

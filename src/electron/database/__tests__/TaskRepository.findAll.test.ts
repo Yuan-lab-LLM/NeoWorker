@@ -39,7 +39,7 @@ describe("TaskRepository.findAll", () => {
     expect(all).toHaveBeenCalledWith(25, 0);
   });
 
-  it("keeps task-scoped provider and model metadata in sidebar summaries", () => {
+  it("keeps provider, model and scheduled conversation identity in sidebar summaries", () => {
     const all = vi.fn(() => [
       {
         id: "task-1",
@@ -51,6 +51,7 @@ describe("TaskRepository.findAll", () => {
         is_pinned: 0,
         agent_config_provider_type: "openai",
         agent_config_model_key: "gpt-5.4",
+        agent_config_scheduled_job_id: "scheduled-job-1",
       },
     ]);
     const prepare = vi.fn(() => ({ all }));
@@ -63,9 +64,11 @@ describe("TaskRepository.findAll", () => {
 
     expect(sql).toContain("json_extract(agent_config, '$.providerType')");
     expect(sql).toContain("json_extract(agent_config, '$.modelKey')");
+    expect(sql).toContain("json_extract(agent_config, '$.scheduledJobId')");
     expect(task.agentConfig).toMatchObject({
       providerType: "openai",
       modelKey: "gpt-5.4",
+      scheduledJobId: "scheduled-job-1",
     });
   });
 

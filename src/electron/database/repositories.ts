@@ -1072,6 +1072,11 @@ export class TaskRepository {
         END AS agent_config_model_key,
         CASE
           WHEN agent_config IS NOT NULL AND json_valid(agent_config)
+          THEN json_extract(agent_config, '$.scheduledJobId')
+          ELSE NULL
+        END AS agent_config_scheduled_job_id,
+        CASE
+          WHEN agent_config IS NOT NULL AND json_valid(agent_config)
           THEN json_extract(agent_config, '$.videoGenerationMode')
           ELSE NULL
         END AS agent_config_video_generation_mode,
@@ -1771,6 +1776,9 @@ export class TaskRepository {
     }
     if (typeof row.agent_config_model_key === "string") {
       agentConfig.modelKey = row.agent_config_model_key;
+    }
+    if (typeof row.agent_config_scheduled_job_id === "string") {
+      agentConfig.scheduledJobId = row.agent_config_scheduled_job_id;
     }
     if (typeof row.agent_config_task_domain === "string") {
       agentConfig.taskDomain =

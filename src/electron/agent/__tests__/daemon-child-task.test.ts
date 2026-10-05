@@ -3,6 +3,20 @@ import { describe, expect, it, vi } from "vitest";
 import { AgentDaemon } from "../daemon";
 
 describe("AgentDaemon.createChildTask", () => {
+  it.each([
+    [true, undefined, true, true],
+    [true, false, true, false],
+    [false, true, true, false],
+    [true, true, false, false],
+  ])("inherits shell without turning an unspecified child value into a denial (%s, %s, %s)", (parentShell, childShell, workspaceShell, expected) => {
+    const daemon = Object.create(AgentDaemon.prototype) as Any;
+    daemon.taskRepo = { findById: () => ({ id: "parent" }) };
+    daemon.ensureTaskAccessPolicy = () => ({ shellAccess: parentShell, connectorIds: [], workspaceScopes: [{ workspaceId: "ws", rootPath: "/tmp/work", access: "write" }] });
+    daemon.workspaceRepo = { findById: () => ({ path: "/tmp/work", permissions: { read: true, write: true, shell: workspaceShell } }) };
+    daemon.taskAccessPolicyRepo = { createInitial: vi.fn() };
+    daemon.inheritTaskAccessPolicy("parent", { id: "child", workspaceId: "ws", agentConfig: { shellAccess: childShell } }, "child");
+    expect(daemon.taskAccessPolicyRepo.createInitial).toHaveBeenCalledWith("child", expect.objectContaining({ shellAccess: expected }));
+  });
   it("inherits project lineage from the parent task", async () => {
     const taskRepo = {
       findById: vi.fn().mockReturnValue({
@@ -24,6 +38,8 @@ describe("AgentDaemon.createChildTask", () => {
       taskRepo,
       startTask: vi.fn(),
       ensureCollaborativeRunForParentTask: vi.fn(),
+      attachInitialTaskProvenance: vi.fn(),
+      inheritTaskAccessPolicy: vi.fn(),
     } as Any;
 
     const child = await AgentDaemon.prototype.createChildTask.call(daemonLike, {
@@ -59,6 +75,8 @@ describe("AgentDaemon.createChildTask", () => {
       taskRepo,
       startTask: vi.fn(),
       ensureCollaborativeRunForParentTask: vi.fn(),
+      attachInitialTaskProvenance: vi.fn(),
+      inheritTaskAccessPolicy: vi.fn(),
     } as Any;
 
     const child = await AgentDaemon.prototype.createChildTask.call(daemonLike, {
@@ -94,6 +112,8 @@ describe("AgentDaemon.createChildTask", () => {
       taskRepo,
       startTask: vi.fn(),
       ensureCollaborativeRunForParentTask: vi.fn(),
+      attachInitialTaskProvenance: vi.fn(),
+      inheritTaskAccessPolicy: vi.fn(),
     } as Any;
 
     await AgentDaemon.prototype.createChildTask.call(daemonLike, {
@@ -124,6 +144,8 @@ describe("AgentDaemon.createChildTask", () => {
       taskRepo,
       startTask: vi.fn(),
       ensureCollaborativeRunForParentTask: vi.fn(),
+      attachInitialTaskProvenance: vi.fn(),
+      inheritTaskAccessPolicy: vi.fn(),
     } as Any;
 
     const child = await AgentDaemon.prototype.createChildTask.call(daemonLike, {
@@ -161,6 +183,8 @@ describe("AgentDaemon.createChildTask", () => {
       taskRepo,
       startTask: vi.fn(),
       ensureCollaborativeRunForParentTask: vi.fn(),
+      attachInitialTaskProvenance: vi.fn(),
+      inheritTaskAccessPolicy: vi.fn(),
     } as Any;
 
     const child = await AgentDaemon.prototype.createChildTask.call(daemonLike, {
@@ -203,6 +227,8 @@ describe("AgentDaemon.createChildTask", () => {
       taskRepo,
       startTask: vi.fn(),
       ensureCollaborativeRunForParentTask: vi.fn(),
+      attachInitialTaskProvenance: vi.fn(),
+      inheritTaskAccessPolicy: vi.fn(),
     } as Any;
 
     const child = await AgentDaemon.prototype.createChildTask.call(daemonLike, {

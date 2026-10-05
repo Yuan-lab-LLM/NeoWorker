@@ -149,6 +149,11 @@ export const WorkspaceCreateSchema = z.object({
 
 // ============ Task Schemas ============
 
+export const SkillInvocationParametersSchema = z.record(
+  z.string().min(1).max(200),
+  z.union([z.string().max(MAX_PROMPT_LENGTH), z.number().finite(), z.boolean()]),
+);
+
 export const AgentConfigSchema = z
   .object({
     providerType: LLMProviderTypeSchema.optional(),
@@ -335,6 +340,7 @@ export const AgentConfigSchema = z
       .optional(),
     videoGenerationMode: z.boolean().optional(),
     requestedSkillId: z.string().min(1).max(200).optional(),
+    requestedSkillParameters: SkillInvocationParametersSchema.optional(),
   })
   .strict();
 
@@ -507,6 +513,7 @@ export const TaskMessageSchema = z
       .optional(),
     runtimePreference: z.enum(["auto", "hermes", "native"]).optional(),
     requestedSkillId: z.string().trim().min(1).max(200).optional(),
+    requestedSkillParameters: SkillInvocationParametersSchema.optional(),
     permissionMode: PermissionModeSchema.optional(),
     shellAccess: z.boolean().optional(),
     agentConfigOverride: AgentConfigSchema.pick({

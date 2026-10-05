@@ -1,0 +1,52 @@
+.automation-confirm-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(440px, calc(100vw - 48px));
+  box-sizing: border-box;
+  padding: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-bg-primary, #fff);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui, system-ui, sans-serif);
+  box-shadow: 0 20px 64px #0003;
+}
+.automation-confirm-dialog::backdrop {
+  background: #11182766;
+}
+.automation-confirm-dialog h2 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.automation-confirm-dialog p {
+  margin: 12px 0 26px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.automation-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.automation-confirm-actions button {
+  padding: 10px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+.automation-confirm-actions button:focus-visible {
+  outline: 2px solid var(--color-accent, #218bff);
+  outline-offset: 3px;
+}
+.automation-confirm-actions .automation-confirm-destructive {
+  color: #fff;
+  background: var(--color-error, #c83c48);
+  border-color: transparent;
+}

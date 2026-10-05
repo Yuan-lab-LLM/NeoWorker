@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { Check, Loader2, MessageSquare, X } from "lucide-react";
 import type {
   ImageAttachment,
@@ -14,6 +14,8 @@ import type {
   TaskEvent,
   Workspace,
 } from "../../shared/types";
+import { useAgentTaskTimeline } from "../hooks/use-agent-task-timeline";
+import { getAgentTaskStatus } from "../../shared/agent-task-status";
 import { MainContent } from "./MainContent";
 import { resolveSpawnedAgentSidebarTask } from "../utils/spawned-agent-sidebar";
 import { translate, useLanguage } from "../i18n";
@@ -53,11 +55,7 @@ type SpawnedAgentSidebarProps = {
 };
 
 function isWorkingTask(task: Task): boolean {
-  return (
-    task.status === "executing" ||
-    task.status === "planning" ||
-    task.status === "interrupted"
-  );
+  return getAgentTaskStatus(task) === "running";
 }
 
 function formatDuration(startMs?: number, endMs?: number): string | null {
@@ -74,7 +72,30 @@ function StatusBadge({ task }: { task: Task }) {
   useLanguage();
   const t = translate;
   const working = isWorkingTask(task);
-  const failed = task.status === "failed" || task.status === "cancelled";
+  const outcome = getAgentTaskStatus(task);
+  const failed = outcome === "failed";
+  const labels = {
+    completed: "Done",
+    failed: "Failed",
+    cancelled: "Cancelled",
+    partial: "Partially completed",
+    "needs-action": "Action needed",
+    approval: "Awaiting approval",
+    resumable: "Ready to resume",
+    running: "Running",
+    pending: "Pending",
+  };
+  const keys = {
+    completed: "done",
+    failed: "failed",
+    cancelled: "cancelled",
+    partial: "partial",
+    "needs-action": "needsAction",
+    approval: "awaitingApproval",
+    resumable: "resumable",
+    running: "running",
+    pending: "pending",
+  };
   return (
     <span
       className={`spawned-agent-sidebar-status ${
@@ -82,22 +103,13 @@ function StatusBadge({ task }: { task: Task }) {
       }`}
     >
       {working ? (
-        <Loader2
-          size={12}
-          className="spawned-agent-sidebar-status-icon spinning"
-        />
+        <Loader2 size={12} className="spawned-agent-sidebar-status-icon spinning" />
       ) : failed ? (
         <X size={12} className="spawned-agent-sidebar-status-icon" />
-      ) : (
+      ) : outcome === "completed" ? (
         <Check size={12} className="spawned-agent-sidebar-status-icon" />
-      )}
-      {working
-        ? t("spawnedAgents.status.running", "Running")
-        : task.status === "completed"
-          ? t("spawnedAgents.status.done", "Done")
-          : task.status === "cancelled"
-            ? t("spawnedAgents.status.cancelled", "Cancelled")
-            : t(`spawnedAgents.status.${task.status}`, task.status)}
+      ) : null}
+      {t(`collab.lines.${keys[outcome]}`, labels[outcome])}
     </span>
   );
 }
@@ -131,19 +143,9 @@ export function SpawnedAgentSidebar({
   const language = useLanguage();
   const t = translate;
   const [sendError, setSendError] = useState<string | null>(null);
-  const selectedTask = resolveSpawnedAgentSidebarTask(
-    childTasks,
-    selectedTaskId,
-  );
-  const selectedEvents = useMemo(
-    () =>
-      selectedTask
-        ? childEvents
-            .filter((event) => event.taskId === selectedTask.id)
-            .sort((a, b) => a.timestamp - b.timestamp)
-        : [],
-    [childEvents, selectedTask],
-  );
+  const selectedTask = resolveSpawnedAgentSidebarTask(childTasks, selectedTaskId);
+  const timeline = useAgentTaskTimeline(selectedTask, childEvents);
+  const selectedEvents = timeline.events;
   const durationLabel = selectedTask
     ? formatDuration(
         selectedTask.createdAt,
@@ -216,27 +218,18 @@ export function SpawnedAgentSidebar({
   }
 
   return (
-    <aside
-      className="spawned-agent-sidebar"
-      aria-label={t("spawnedAgents.aria", "Spawned agents")}
-    >
+    <aside className="spawned-agent-sidebar" aria-label={t("spawnedAgents.aria", "Spawned agents")}>
       <div className="spawned-agent-sidebar-header">
         <div className="spawned-agent-sidebar-heading">
           <div className="spawned-agent-sidebar-kicker">
             {t("spawnedAgents.spawnedFrom", "Spawned from {title}", {
               title: getManagedAgentTaskTitleForDisplay(
-                parentTask.title ||
-                  t("spawnedAgents.parentTask", "parent task"),
+                parentTask.title || t("spawnedAgents.parentTask", "parent task"),
               ),
             })}
           </div>
           <h2>
-            {
-              getLocalizedSubagentDisplay(
-                stripLeadingEmoji(selectedTask.title),
-                language,
-              ).name
-            }
+            {getLocalizedSubagentDisplay(stripLeadingEmoji(selectedTask.title), language).name}
           </h2>
           <div className="spawned-agent-sidebar-meta">
             <StatusBadge task={selectedTask} />
@@ -271,25 +264,15 @@ export function SpawnedAgentSidebar({
               type="button"
               role="tab"
               aria-selected={task.id === selectedTask.id}
-              className={`spawned-agent-sidebar-tab ${
-                task.id === selectedTask.id ? "active" : ""
-              }`}
+              className={`spawned-agent-sidebar-tab ${task.id === selectedTask.id ? "active" : ""}`}
               onClick={() => onSelectTask(task.id)}
             >
               <span className="spawned-agent-sidebar-tab-label">
-                {
-                  getLocalizedSubagentDisplay(
-                    stripLeadingEmoji(task.title),
-                    language,
-                  ).name
-                }
+                {getLocalizedSubagentDisplay(stripLeadingEmoji(task.title), language).name}
               </span>
               {isWorkingTask(task) ? (
-                <Loader2
-                  size={12}
-                  className="spawned-agent-sidebar-tab-icon spinning"
-                />
-              ) : task.status === "completed" ? (
+                <Loader2 size={12} className="spawned-agent-sidebar-tab-icon spinning" />
+              ) : getAgentTaskStatus(task) === "completed" ? (
                 <Check size={12} className="spawned-agent-sidebar-tab-icon" />
               ) : null}
             </button>
@@ -311,6 +294,11 @@ export function SpawnedAgentSidebar({
             selectedTaskId={selectedTask.id}
             workspace={workspace}
             events={selectedEvents}
+            hasMoreTimelineHistory={timeline.hasMore}
+            isLoadingTimelineHistory={timeline.loading}
+            timelineHistoryError={timeline.error}
+            onLoadMoreTimelineHistory={timeline.loadMore}
+            onLoadTaskEventDetail={timeline.loadDetail}
             sharedTaskEventUi={null}
             childTasks={[]}
             childEvents={[]}
@@ -321,9 +309,7 @@ export function SpawnedAgentSidebar({
                 ? () => onCancelTask(selectedTask.id)
                 : undefined
             }
-            inputRequest={
-              inputRequest?.taskId === selectedTask.id ? inputRequest : null
-            }
+            inputRequest={inputRequest?.taskId === selectedTask.id ? inputRequest : null}
             onTasksChanged={onTasksChanged}
             onOpenSettings={onOpenSettings as never}
             selectedModel={selectedModel}

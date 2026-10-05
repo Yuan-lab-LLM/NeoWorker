@@ -131,8 +131,18 @@ export function buildPermissionSecurityContext(args: {
       )
     : null;
   const recentSensitiveSources = Array.isArray(args.recentSensitiveSources)
-    ? args.recentSensitiveSources.filter(Boolean)
+    ? args.recentSensitiveSources.filter(Boolean).slice()
     : [];
+  // Batch vision exports retain the same provenance/approval context as
+  // individual image requests, including every untrusted source in the batch.
+  const input = args.toolInput as { paths?: unknown } | null;
+  if (args.toolName === "analyze_image" && Array.isArray(input?.paths)) {
+    for (const candidate of input.paths) {
+      if (typeof candidate !== "string" || !candidate.trim()) continue;
+      recentSensitiveSources.push(buildSensitiveSourceRefForPath(args.workspace,
+        path.resolve(args.workspace?.path || ".", candidate)));
+    }
+  }
   const context: PermissionSecurityContext = {
     ...(exportTarget ? { exportTarget } : {}),
     ...(directSource ? { directSource } : {}),

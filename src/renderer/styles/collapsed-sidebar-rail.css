@@ -6,130 +6,54 @@
   --title-bar-main-start: var(--collapsed-sidebar-rail-width);
 }
 
-.collapsed-sidebar-rail {
-  width: var(--collapsed-sidebar-rail-width);
+/* Reuse the expanded sidebar's brand, header, row and icon geometry.
+ * Only the rail width and icon-only button surfaces differ on collapse. */
+.sidebar.cli-sidebar.collapsed-sidebar-rail {
+  --sidebar-width: var(--collapsed-sidebar-rail-width);
   min-width: var(--collapsed-sidebar-rail-width);
-  height: 100%;
-  min-height: 0;
-  padding: calc(var(--title-bar-height) + 8px) 8px 10px;
-  display: flex;
+  max-width: var(--collapsed-sidebar-rail-width);
   flex: 0 0 var(--collapsed-sidebar-rail-width);
-  flex-direction: column;
-  align-items: center;
-  background: var(--color-bg-sidebar);
-  border-right: 0.5px solid var(--color-border-subtle);
 }
 
-.collapsed-sidebar-rail-brand,
-.collapsed-sidebar-rail-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 36px;
-  height: 36px;
+.collapsed-sidebar-rail-brand {
   padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: 6px;
   background: transparent;
-  color: var(--color-text-secondary);
   cursor: pointer;
   -webkit-app-region: no-drag;
 }
 
-.collapsed-sidebar-rail-brand {
-  margin-bottom: 8px;
+.collapsed-sidebar-rail-brand .sidebar-brand-logo {
+  margin-right: 0;
 }
 
-.collapsed-sidebar-rail-brand img {
-  display: block;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  object-fit: cover;
+.collapsed-sidebar-rail .collapsed-sidebar-rail-button {
+  /* Keep the icon's leading inset even when the label is absent. */
+  flex-shrink: 0;
+  justify-content: flex-start;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
 }
 
-.collapsed-sidebar-rail-navigation {
-  display: flex;
-  width: 100%;
-  min-height: 0;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.collapsed-sidebar-rail-button:hover,
-.collapsed-sidebar-rail-brand:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text);
-}
-
-.collapsed-sidebar-rail-button.active {
-  background: color-mix(in srgb, var(--color-accent-subtle) 78%, transparent);
-  color: var(--color-accent-dark);
-}
-
-.collapsed-sidebar-rail-button:active,
-.collapsed-sidebar-rail-brand:active {
-  transform: scale(0.96);
+.sidebar.cli-sidebar.collapsed-sidebar-rail .sidebar-new-session-btn {
+  /* Transparent chrome preserves the border's layout contribution. */
+  border-color: transparent !important;
+  background: transparent !important;
 }
 
 .collapsed-sidebar-rail-divider {
-  width: 24px;
   height: 1px;
-  margin: 4px 0;
+  margin: 12px 0 6px;
   background: var(--color-border-subtle);
 }
 
-.collapsed-sidebar-rail-settings {
+.collapsed-sidebar-rail-footer {
   margin-top: auto;
 }
 
-.theme-light .collapsed-sidebar-rail {
-  background: #f7f8fa;
-  border-right-color: #e6e8ec;
-}
-
-.theme-light .collapsed-sidebar-rail-button,
-.theme-light .collapsed-sidebar-rail-brand {
-  color: #536071;
-}
-
-.theme-light .collapsed-sidebar-rail-button:hover,
-.theme-light .collapsed-sidebar-rail-brand:hover {
-  background: #eceff3;
-  color: #172033;
-}
-
-.theme-light .collapsed-sidebar-rail-button.active {
-  background: #e6f1ff;
-  color: #1677e8;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .collapsed-sidebar-rail-brand,
-  .collapsed-sidebar-rail-button {
-    transition:
-      color 140ms ease,
-      background-color 140ms ease,
-      transform 100ms ease;
-  }
-}
-
-@media (max-height: 620px) {
-  .collapsed-sidebar-rail {
-    padding-bottom: 6px;
-  }
-
-  .collapsed-sidebar-rail-brand {
-    margin-bottom: 4px;
-  }
-
-  .collapsed-sidebar-rail-navigation {
-    gap: 2px;
-  }
-
-  .collapsed-sidebar-rail-divider {
-    margin-block: 2px;
-  }
+.collapsed-sidebar-rail-brand:focus-visible,
+.collapsed-sidebar-rail-button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }

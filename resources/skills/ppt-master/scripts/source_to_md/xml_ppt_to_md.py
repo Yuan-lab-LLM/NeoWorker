@@ -94,11 +94,7 @@ def _chart_to_markdown(chart: dict[str, Any]) -> str:
     if not series:
         return f"{header}\n\n> [Chart data unavailable]"
     names = [str(item.get("name") or f"Series {index}") for index, item in enumerate(series, 1)]
-    row_count = max(
-        len(categories),
-        *(len(item.get("values") or []) for item in series),
-        default=0,
-    )
+    row_count = max([len(categories), *(len(item.get("values") or []) for item in series)])
     lines = [
         header,
         "",

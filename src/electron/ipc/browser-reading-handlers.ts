@@ -6,6 +6,7 @@ import {
 } from "electron";
 import { pathToFileURL } from "node:url";
 import { extractPdfText } from "../browser/reading/pdf-text";
+import { readHtmlSelection, watchHtmlSelection } from "../browser/reading/selection";
 import {
   READING_CHANNELS,
   readingUrl,
@@ -111,6 +112,7 @@ export function setupBrowserReadingHandlers(
     });
   });
   const probing = new Set<number>();
+  const watchedHtmlGuests = new WeakSet<Electron.WebContents>();
   ipcMain.handle(
     READING_CHANNELS.probeSelection,
     async (event, input: ReadingSelectionRequest) => {
@@ -144,7 +146,13 @@ export function setupBrowserReadingHandlers(
           "chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/",
         ),
       );
-      if (!frame) return null;
+      if (!frame) {
+        if (!watchedHtmlGuests.has(guest)) {
+          watchedHtmlGuests.add(guest);
+          watchHtmlSelection(guest, event.sender);
+        }
+        return readHtmlSelection(guest);
+      }
       const contentFrames = guest.mainFrame.framesInSubtree.filter(
         (child) => child === guest.mainFrame || child.parent === frame,
       );

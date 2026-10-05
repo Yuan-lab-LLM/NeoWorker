@@ -1,5 +1,62 @@
 /** Public, anonymous sources maintained by NeoWorker. No user-provided endpoints. */
 export const NEWS_PUBLISHERS = {
+  who: {
+    name: "世界卫生组织",
+    nameEn: "WHO",
+    category: "health",
+    endpoint: "https://www.who.int/rss-feeds/news-english.xml",
+    format: "rss",
+    hosts: ["www.who.int"],
+  },
+  sciencedailyhealth: {
+    name: "ScienceDaily · 健康",
+    nameEn: "ScienceDaily \u00b7 Health",
+    category: "health",
+    endpoint: "https://www.sciencedaily.com/rss/health_medicine.xml",
+    format: "rss",
+    hosts: ["www.sciencedaily.com"],
+  },
+  androidreviews: {
+    name: "Android Authority · 评测",
+    nameEn: "Android Authority \u00b7 Reviews",
+    category: "consumer",
+    endpoint: "https://www.androidauthority.com/reviews/feed/",
+    format: "rss",
+    hosts: ["www.androidauthority.com"],
+  },
+  engadget: {
+    name: "Engadget",
+    nameEn: "Engadget",
+    category: "consumer",
+    endpoint: "https://www.engadget.com/rss.xml",
+    format: "rss",
+    hosts: ["www.engadget.com"],
+  },
+  zapier: {
+    name: "Zapier · 效率指南",
+    nameEn: "Zapier \u00b7 Productivity",
+    category: "productivity",
+    endpoint: "https://zapier.com/blog/feeds/latest/",
+    format: "rss",
+    hosts: ["zapier.com"],
+  },
+  learningresearch: {
+    name: "学习科学",
+    nameEn: "The Learning Scientists",
+    category: "learning",
+    endpoint: "https://www.learningscientists.org/blog?format=rss",
+    format: "rss",
+    hosts: ["www.learningscientists.org"],
+  },
+  coursera: {
+    name: "Coursera",
+    nameEn: "Coursera",
+    category: "learning",
+    endpoint: "https://blog.coursera.org/feed/",
+    format: "rss",
+    hosts: ["blog.coursera.org"],
+  },
+
   qbitai: {
     name: "量子位",
     nameEn: "QbitAI",
@@ -31,14 +88,6 @@ export const NEWS_PUBLISHERS = {
     endpoint: "https://www.eet-china.com/",
     format: "html",
     hosts: ["www.eet-china.com"],
-  },
-  chinatalk: {
-    name: "ChinaTalk",
-    nameEn: "ChinaTalk",
-    category: "technology",
-    endpoint: "https://www.chinatalk.media/feed",
-    format: "rss",
-    hosts: ["www.chinatalk.media", "chinatalk.media"],
   },
   yicai: {
     name: "第一财经",

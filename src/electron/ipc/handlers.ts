@@ -1,4 +1,6 @@
+import { validateOpenAICompatibleBaseUrl, type ProviderBaseUrlOptions } from "./provider-base-url";
 import { setupBrowserReadingHandlers } from "./browser-reading-handlers";
+import { setupBrowserPageTranslationHandlers } from "./browser-page-translation-handlers";
 import { readWorkspaceContext, withWorkspaceConversationName } from "../database/workspace-context";
 import { setupPaperNewsHandlers } from "./paper-news-handlers";
 import { LLMProviderTypeSchema } from "../utils/validation";
@@ -9,8 +11,6 @@ import * as fs from "fs/promises";
 import * as fsSync from "fs";
 import { execFile, spawn as spawnProcess } from "child_process";
 import { promisify } from "util";
-import { promises as dns } from "dns";
-import { isIP } from "net";
 import mime from "mime-types";
 import { z } from "zod";
 import { getUserDataDir } from "../utils/user-data-dir";
@@ -887,125 +887,6 @@ function checkRateLimit(
   }
 }
 
-const OpenAICompatibleBaseUrlSchema = z.string().url().max(500);
-const BLOCKED_OPENAI_COMPATIBLE_HOSTNAMES = new Set(["0.0.0.0", "::", "metadata.google.internal"]);
-const BLOCKED_OPENAI_COMPATIBLE_IPS = new Set([
-  "169.254.169.254", // AWS/GCP/Azure instance metadata pattern
-]);
-
-function normalizeHostname(hostname: string): string {
-  const trimmed = String(hostname || "")
-    .trim()
-    .toLowerCase();
-  const unwrapped =
-    trimmed.startsWith("[") && trimmed.endsWith("]") ? trimmed.slice(1, -1) : trimmed;
-  return unwrapped.endsWith(".") ? unwrapped.slice(0, -1) : unwrapped;
-}
-
-function isPrivateIpv4Address(address: string): boolean {
-  const parts = address.split(".").map((p) => Number(p));
-  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
-    return false;
-  }
-
-  const [a, b] = parts;
-  if (a === 10 || a === 127 || a === 0) return true;
-  if (a === 169 && b === 254) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
-  return false;
-}
-
-function isPrivateIpv6Address(address: string): boolean {
-  const normalized = normalizeHostname(address);
-  if (!normalized || normalized === "::" || normalized === "::1") return true;
-  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true; // unique local
-  if (
-    normalized.startsWith("fe8") ||
-    normalized.startsWith("fe9") ||
-    normalized.startsWith("fea") ||
-    normalized.startsWith("feb")
-  ) {
-    return true; // link-local fe80::/10
-  }
-  return false;
-}
-
-function isPrivateOrLoopbackAddress(address: string): boolean {
-  const normalized = normalizeHostname(address);
-  const family = isIP(normalized);
-  if (family === 4) return isPrivateIpv4Address(normalized);
-  if (family === 6) return isPrivateIpv6Address(normalized);
-  return false;
-}
-
-function isLoopbackAddress(address: string): boolean {
-  const normalized = normalizeHostname(address);
-  if (normalized === "localhost") return true;
-  const family = isIP(normalized);
-  if (family === 4) {
-    return normalized.split(".")[0] === "127";
-  }
-  if (family === 6) {
-    return normalized === "::1";
-  }
-  return false;
-}
-
-async function validateOpenAICompatibleBaseUrl(
-  baseUrl: string,
-  options: { allowLoopback?: boolean } = {},
-): Promise<string> {
-  const validatedBaseUrl = validateInput(
-    OpenAICompatibleBaseUrlSchema,
-    baseUrl,
-    "OpenAI-compatible base URL",
-  );
-  const parsed = new URL(validatedBaseUrl);
-  const protocol = parsed.protocol.toLowerCase();
-  if (protocol !== "https:" && protocol !== "http:") {
-    throw new Error("OpenAI-compatible base URL must use HTTP or HTTPS.");
-  }
-
-  const hostname = normalizeHostname(parsed.hostname);
-  if (!hostname) {
-    throw new Error("OpenAI-compatible base URL must include a valid hostname.");
-  }
-  const allowLoopback = options.allowLoopback === true;
-  if (BLOCKED_OPENAI_COMPATIBLE_HOSTNAMES.has(hostname) || hostname.endsWith(".local")) {
-    throw new Error("OpenAI-compatible base URL cannot target blocked hosts.");
-  }
-  if (isPrivateOrLoopbackAddress(hostname) && !(allowLoopback && isLoopbackAddress(hostname))) {
-    throw new Error(
-      "OpenAI-compatible base URL cannot target private network hosts (except loopback).",
-    );
-  }
-
-  try {
-    const resolved = await dns.lookup(hostname, { all: true, verbatim: true });
-    if (
-      resolved.some((entry) => {
-        const normalizedAddress = normalizeHostname(entry.address);
-        if (BLOCKED_OPENAI_COMPATIBLE_IPS.has(normalizedAddress)) return true;
-        if (!isPrivateOrLoopbackAddress(normalizedAddress)) return false;
-        return !(allowLoopback && isLoopbackAddress(normalizedAddress));
-      })
-    ) {
-      throw new Error("OpenAI-compatible base URL resolved to a blocked private/metadata address.");
-    }
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException)?.code;
-    if (code === "ENOTFOUND" || code === "EAI_AGAIN" || code === "ENODATA") {
-      // Let downstream request handling surface connectivity errors.
-      return validatedBaseUrl;
-    }
-    throw error;
-  }
-
-  return validatedBaseUrl;
-}
-
 function validateOptionalProviderApiKey(
   apiKey: string | undefined,
   providerLabel: string,
@@ -1015,10 +896,7 @@ function validateOptionalProviderApiKey(
 
 async function validateOptionalProviderBaseUrl(
   baseUrl: string | undefined,
-  options: {
-    providerLabel: string;
-    allowLoopback?: boolean;
-  },
+  options: ProviderBaseUrlOptions & { providerLabel: string },
 ): Promise<string | undefined> {
   if (baseUrl == null || baseUrl === "") {
     return undefined;
@@ -1034,6 +912,7 @@ async function validateOptionalProviderBaseUrl(
   }
   return await validateOpenAICompatibleBaseUrl(validatedBaseUrl, {
     allowLoopback: options.allowLoopback,
+    allowPrivateNetwork: options.allowPrivateNetwork,
   });
 }
 
@@ -1530,14 +1409,14 @@ export async function setupIpcHandlers(
       agentDaemon.appendOrchestrationGraphNodes(params as Any),
     findOrchestrationGraphByTeamRunId: (teamRunId: string) =>
       agentDaemon.findOrchestrationGraphByTeamRunId(teamRunId),
-    completeRootTask: (taskId, status, summary) => {
+    completeRootTask: (taskId, status, summary, outputSummary) => {
       if (status === "failed") {
         agentDaemon.failTask(taskId, summary, {
           resultSummary: summary,
         });
         return;
       }
-      agentDaemon.completeTask(taskId, summary);
+      agentDaemon.completeTask(taskId, summary, outputSummary ? { outputSummary } : undefined);
     },
   });
   agentDaemon.setTeamOrchestrator(teamOrchestrator);
@@ -5972,6 +5851,7 @@ export async function setupIpcHandlers(
     const validated = validateInput(TaskMessageSchema, data, "task message");
     const validatedImages = validated.images;
     try {
+      gateway?.detachTaskForDesktop(validated.taskId);
       const result = await agentDaemon.sendMessage(
         validated.taskId,
         validated.message,
@@ -5986,7 +5866,12 @@ export async function setupIpcHandlers(
           ...(validated.runtimePreference
             ? { runtimePreference: validated.runtimePreference }
             : {}),
-          ...(validated.requestedSkillId ? { requestedSkillId: validated.requestedSkillId } : {}),
+          ...(validated.requestedSkillId ? {
+            requestedSkillId: validated.requestedSkillId,
+            ...(validated.requestedSkillParameters !== undefined
+              ? { requestedSkillParameters: validated.requestedSkillParameters }
+              : {}),
+          } : {}),
           ...(validated.permissionMode ? { permissionMode: validated.permissionMode } : {}),
           ...(validated.shellAccess !== undefined ? { shellAccess: validated.shellAccess } : {}),
           ...(validated.agentConfigOverride
@@ -6670,10 +6555,12 @@ export async function setupIpcHandlers(
   });
 
   ipcMain.handle(IPC_CHANNELS.SKILL_REGISTRY_GET_STATUS, async () => {
+    await ensureCustomSkillLoaderInitialized();
     return customSkillLoader.getSkillStatus();
   });
 
   ipcMain.handle(IPC_CHANNELS.SKILL_REGISTRY_GET_ELIGIBLE, async () => {
+    await ensureCustomSkillLoaderInitialized();
     return customSkillLoader.getEligibleSkills();
   });
 
@@ -6955,10 +6842,11 @@ export async function setupIpcHandlers(
     const ollamaBaseUrl = await validateOptionalProviderBaseUrl(validatedConfig.ollama?.baseUrl, {
       providerLabel: "Ollama",
       allowLoopback: true,
+      allowPrivateNetwork: true,
     });
     const openaiCompatibleBaseUrl = await validateOptionalProviderBaseUrl(
       validatedConfig.openaiCompatible?.baseUrl,
-      { providerLabel: "OpenAI-compatible provider", allowLoopback: true },
+      { providerLabel: "OpenAI-compatible provider", allowLoopback: true, allowPrivateNetwork: true },
     );
     const deepseekBaseUrl = await validateOptionalProviderBaseUrl(
       validatedConfig.deepseek?.baseUrl,
@@ -6967,6 +6855,7 @@ export async function setupIpcHandlers(
     const providerBaseUrl = await validateOptionalProviderBaseUrl(customProviderConfig?.baseUrl, {
       providerLabel: `Custom provider ${resolvedProviderType}`,
       allowLoopback: true,
+      allowPrivateNetwork: true,
     });
     const anthropicCredential =
       validatedConfig.anthropic?.authMethod === "subscription"
@@ -7106,6 +6995,7 @@ export async function setupIpcHandlers(
             baseUrl: await validateOptionalProviderBaseUrl(overrides.baseUrl, {
               providerLabel: validatedProviderType,
               allowLoopback: true,
+              allowPrivateNetwork: true,
             }),
           }
         : undefined;
@@ -7182,6 +7072,7 @@ export async function setupIpcHandlers(
     const validatedBaseUrl = await validateOptionalProviderBaseUrl(baseUrl, {
       providerLabel: "Ollama",
       allowLoopback: true,
+      allowPrivateNetwork: true,
     });
     logger.debug("Handling LLM_GET_OLLAMA_MODELS request");
     const models = await LLMProviderFactory.getOllamaModels(validatedBaseUrl);
@@ -7347,6 +7238,7 @@ export async function setupIpcHandlers(
       checkRateLimit(IPC_CHANNELS.LLM_GET_OPENAI_COMPATIBLE_MODELS);
       const validatedBaseUrl = await validateOpenAICompatibleBaseUrl(baseUrl, {
         allowLoopback: true,
+        allowPrivateNetwork: true,
       });
       return LLMProviderFactory.getOpenAICompatibleModels(
         validatedBaseUrl,
@@ -10551,6 +10443,7 @@ export async function setupIpcHandlers(
   // Local AI (hf-agents / llama.cpp) handlers
   setupLocalAIHandlers();
   setupBrowserReadingHandlers((event) => event.sender === getMainWindow()?.webContents);
+  setupBrowserPageTranslationHandlers((event) => event.sender === getMainWindow()?.webContents);
   setupPaperNewsHandlers((event) => event.sender === getMainWindow()?.webContents);
 
   // Notification handlers

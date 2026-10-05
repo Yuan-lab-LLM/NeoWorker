@@ -75,7 +75,9 @@ function normalizeSlideData(slide: InputRecord): InputRecord {
     series: explicit.series || chart.series || [],
     headers: explicit.headers || table.headers || [],
     rows: explicit.rows || table.rows || [],
-    items: explicit.items || metrics || timeline || [],
+    // Empty arrays are truthy. The old metrics fallback swallowed every timeline
+    // even when the caller supplied all its steps.
+    items: explicit.items ?? (metrics.length > 0 ? metrics : timeline),
   };
   const supportedDataKeys = new Set(["categories", "series", "headers", "rows", "items"]);
   const unsupportedDataKeys = Object.keys(explicit).filter(

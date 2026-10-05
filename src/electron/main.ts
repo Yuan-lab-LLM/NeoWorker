@@ -121,6 +121,7 @@ import { MCPClientManager } from "./mcp/client/MCPClientManager";
 import { trayManager } from "./tray";
 import { CronService, setCronService, getCronStorePath } from "./cron";
 import { resolveTaskResultText } from "./cron/result-text";
+import { scheduledTaskStatus, scheduledTaskResult } from "./cron/task-session";
 import {
   StrategicPlannerService,
   setStrategicPlannerService,
@@ -1699,6 +1700,9 @@ if (isCliDirectRunMode()) {
       );
       const runTempWorkspacePrune = () => {
         try {
+          getCustomSkillLoader().recoverTemporaryWorkspaceSkills(
+            new WorkspaceRepository(dbManager.getDatabase()).findAll(),
+          );
           pruneTempWorkspaces({
             db: dbManager.getDatabase(),
             tempWorkspaceRoot,
@@ -2221,8 +2225,8 @@ if (isCliDirectRunMode()) {
 
             const needsManagedWorkspace =
               !workspace || workspace.isTemp || isTempWorkspaceId(workspace.id);
-            if (!workspace) {
-              return null;
+            if (!workspace && job.workspaceId && job.workspaceMode !== "automatic") {
+              throw new Error("The selected workspace is unavailable. Choose another folder or use an automatic workspace.");
             }
 
             if (needsManagedWorkspace) {
@@ -2230,9 +2234,11 @@ if (isCliDirectRunMode()) {
               if (!workspace) {
                 return null;
               }
-            } else {
+            } else if (workspace) {
               workspaceRepo.updateLastUsedAt(workspace.id, nowMs);
             }
+
+            if (!workspace) throw new Error("Failed to prepare the scheduled workspace");
 
             const managedWorkspace = isManagedScheduledWorkspacePath(
               workspace.path,
@@ -2428,7 +2434,7 @@ if (isCliDirectRunMode()) {
               chat_truncated: rendered.truncated ? "true" : "false",
             };
           },
-          getTaskStatus: async (taskId) => {
+          getTaskStatus: async (taskId, resultSinceMs) => {
             const managedRun = managedBriefingRuns.get(taskId);
             if (managedRun) {
               return {
@@ -2442,29 +2448,16 @@ if (isCliDirectRunMode()) {
             }
             const task = taskRepo.findById(taskId);
             if (!task) return null;
-            return {
-              status: task.status,
-              error: task.error ?? null,
-              resultSummary: task.resultSummary ?? null,
-              terminalStatus: task.terminalStatus ?? null,
-              failureClass: task.failureClass ?? null,
-              budgetUsage: task.budgetUsage ?? null,
-            };
+            return scheduledTaskStatus(task, resultSinceMs);
           },
-          getTaskResultText: async (taskId) => {
+          getTaskResultText: async (taskId, resultSinceMs) => {
             const managedRun = managedBriefingRuns.get(taskId);
             if (managedRun) {
               return managedRun.text;
             }
             const task = taskRepo.findById(taskId);
             const events = taskEventRepo.findByTaskId(taskId);
-            return resolveTaskResultText({
-              summary: task?.resultSummary,
-              semanticSummary: task?.semanticSummary,
-              verificationVerdict: task?.verificationVerdict,
-              verificationReport: task?.verificationReport,
-              events,
-            });
+            return scheduledTaskResult(task, events, resultSinceMs);
           },
           findActiveTaskForJob: async (params) => {
             if (params.runMode !== "new_task") return null;
@@ -2584,9 +2577,8 @@ if (isCliDirectRunMode()) {
               let resolvedType = params.channelType as string;
               if (params.channelDbId) {
                 const ch = channelGateway.getChannel(params.channelDbId);
-                if (ch) {
-                  resolvedType = ch.type;
-                }
+                if (!ch) throw new Error("Configured delivery channel no longer exists");
+                resolvedType = ch.type;
               }
 
               // Send the message via the gateway
@@ -2597,6 +2589,7 @@ if (isCliDirectRunMode()) {
                 {
                   parseMode: "markdown",
                   idempotencyKey: params.idempotencyKey,
+                  channelDbId: params.channelDbId,
                 },
               );
               console.log(

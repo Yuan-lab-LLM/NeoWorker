@@ -9,6 +9,13 @@ import {
 } from "../task-event-stream";
 
 describe("getTaskStatusUpdateFromEvent", () => {
+  it.each(["completed", "failed", "cancelled"])("reads canonical task_status envelopes (%s)", (status) => {
+    expect(getTaskStatusUpdateFromEvent({
+      id: "terminal", taskId: "team", timestamp: 2000,
+      type: "timeline_step_updated", payload: { legacyType: "task_status", status },
+    } as TaskEvent)).toBe(status);
+  });
+
   it("restores the parent status when a follow-up fails", () => {
     const event = {
       id: "follow-up-failed-1",

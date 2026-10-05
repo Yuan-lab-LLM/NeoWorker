@@ -345,17 +345,18 @@ export class HermesRuntimeAdapter {
     this.acceptingUpdates = false;
     this.permissions.cancelPending();
     this.hostToolServer?.suspendToolCalls();
-    // Cancel after any in-flight initialize/session load, before prompt output.
-    if (this.connecting) await this.connecting.catch(() => undefined);
-    // ACP cancellation is advisory for the remote Agent Loop. Abort the
-    // task-scoped MCP calls immediately so a tool that ignores ACP cancel
-    // cannot keep a NeoWorker side effect alive until the hard close timeout.
-    this.hostToolServer?.suspendToolCalls();
-    if (this.sessionCheckpoint) this.client.cancel(this.sessionCheckpoint.sessionId);
+    // The deadline covers initialization too. Waiting for connect() outside
+    // this race made Stop wait for the entire initialization timeout.
+    const graceful = (async () => {
+      if (this.connecting) await this.connecting.catch(() => undefined);
+      this.hostToolServer?.suspendToolCalls();
+      if (this.sessionCheckpoint) this.client.cancel(this.sessionCheckpoint.sessionId);
+      await active.catch(() => undefined);
+    })();
     let force: ReturnType<typeof setTimeout> | undefined;
     try {
       await Promise.race([
-        active.catch(() => undefined),
+        graceful,
         new Promise<void>((resolve) => {
           force = setTimeout(() => {
             void this.close().finally(resolve);

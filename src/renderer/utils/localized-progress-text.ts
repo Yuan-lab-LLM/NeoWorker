@@ -191,6 +191,14 @@ export function localizeProgressText(n: string): string {
   if (getCurrentLanguage() !== "zh-CN") return n;
   const s = n.trim();
   if (!s) return n;
+  if (/^Step finished\.?$/i.test(s)) return "步骤已结束";
+  if (/^Search complete\.?$/i.test(s)) return "搜索已完成";
+  const skippedSource = s.match(/^Skipped unavailable source:\s*(.+)$/i);
+  if (skippedSource) return `已跳过无法访问的来源：${skippedSource[1]}`;
+  const fetchedSource = s.match(/^Fetched(?: page:)?\s+(.+)$/i);
+  if (fetchedSource) return `已获取：${fetchedSource[1]}`;
+  const webSearch = s.match(/^Web search via ([^:]+):\s*(.+)$/i);
+  if (webSearch) return `网页搜索（${webSearch[1]}）：${webSearch[2]}`;
   const translation = s.match(/^Translation saved: (\d+)\/(\d+) text units$/);
   if (translation) return `翻译已保存：${translation[1]}/${translation[2]} 个文本单元`;
   const silent = s.match(/^No new progress for (\d+)s$/);

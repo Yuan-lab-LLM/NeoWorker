@@ -2097,6 +2097,8 @@ export interface AgentConfig {
   integrationMentions?: IntegrationMentionSelection[];
   /** Skill selected through a structured UI affordance, kept out of the user-visible prompt. */
   requestedSkillId?: string;
+  /** Exact form values; preserve types and file paths independently of display text. */
+  requestedSkillParameters?: Record<string, string | number | boolean>;
   /** Optional origin channel that created the task (used for channel-aware gating) */
   originChannel?: ChannelType;
   /** Resolved gateway specialization record that shaped the task. */
@@ -3271,6 +3273,8 @@ export interface TaskFollowUpInput {
   runtimePreference?: TaskRuntimePreference;
   /** Skill explicitly selected for the next turn of the current task. */
   requestedSkillId?: string;
+  /** Exact form values; preserve types and file paths independently of display text. */
+  requestedSkillParameters?: Record<string, string | number | boolean>;
   permissionMode?: PermissionMode;
   shellAccess?: boolean;
   /**
@@ -8877,6 +8881,7 @@ export const IPC_CHANNELS = {
   PAPER_NEWS_GET: "paperNews:get",
   PAPER_NEWS_REFRESH: "paperNews:refresh",
   PAPER_NEWS_CONFIG: "paperNews:config",
+  PAPER_NEWS_FOLLOW: "paperNews:follow",
   PAPER_NEWS_SAVE: "paperNews:save",
 
   BRIEFING_GET_LATEST: "briefing:getLatest",

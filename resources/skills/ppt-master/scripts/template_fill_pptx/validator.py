@@ -437,7 +437,11 @@ def validate_project(project_path: Path) -> dict[str, Any]:
         _, notes = _split_notes(sections.get(plan_slide, ""))
         planned_notes = str(slide.get("notes") or slide.get("speaker_notes") or "")
         if _paragraph_lines(planned_notes):
-            if _contains_paragraphs(notes, planned_notes):
+            # Markdown exporters separate native note paragraphs with blank
+            # lines. Keep the per-slide and ordered-text check, ignoring only
+            # this serialization spacing (not missing or reordered content).
+            compact_notes = "\n".join(line for line in notes.splitlines() if line.strip())
+            if _contains_paragraphs(compact_notes, planned_notes):
                 summary["ok"] += 1
                 continue
             summary["error"] += 1

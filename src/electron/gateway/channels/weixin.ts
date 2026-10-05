@@ -9,6 +9,7 @@ import path from "path";
 import mime from "mime-types";
 import { createLogger } from "../../utils/logger";
 import { AppearanceManager } from "../../settings/appearance-manager";
+import { SecureSettingsRepository } from "../../database/SecureSettingsRepository";
 import type {
   ChannelAdapter,
   ChannelInfo,
@@ -502,6 +503,7 @@ export class WeixinAdapter implements ChannelAdapter {
       baseUrl: normalizeBaseUrl(config.baseUrl),
     };
     this._botUsername = this.config.accountId || "WeChat Assistant";
+    this.restoreContextTokens();
   }
 
   get status(): ChannelStatus {
@@ -712,7 +714,9 @@ export class WeixinAdapter implements ChannelAdapter {
     const messageId = String(
       payload.message_id || payload.client_id || createClientId(),
     );
-    if (!userId || this.isDuplicate(messageId)) return;
+    if (!userId) return;
+    if (payload.context_token) this.rememberContextToken(userId, payload.context_token);
+    if (this.isDuplicate(messageId)) return;
 
     const items = payload.item_list || [];
     const text = items
@@ -720,10 +724,6 @@ export class WeixinAdapter implements ChannelAdapter {
       .map((item) => item.text_item?.text || "")
       .join("\n")
       .trim();
-
-    if (payload.context_token) {
-      this.contextTokens.set(userId, payload.context_token);
-    }
 
     const attachments: MessageAttachment[] = [];
     // `type` is documented as optional and older clients occasionally serialize
@@ -872,6 +872,7 @@ export class WeixinAdapter implements ChannelAdapter {
   }
 
   private requireContextToken(chatId: string): string {
+    if (!this.contextTokens.has(chatId)) this.restoreContextTokens();
     const contextToken = this.contextTokens.get(chatId);
     if (!contextToken) {
       throw new Error(
@@ -879,6 +880,37 @@ export class WeixinAdapter implements ChannelAdapter {
       );
     }
     return contextToken;
+  }
+
+  private contextAccountKey(): string {
+    return createHash("sha256").update(`${this.config.baseUrl}\0${this.config.accountId}`).digest("hex");
+  }
+
+  private restoreContextTokens(): void {
+    if (!this.config.accountId || !SecureSettingsRepository.isInitialized()) return;
+    try {
+      const stored = SecureSettingsRepository.getInstance().load<Record<string, Record<string, string>>>("weixin-reply-context");
+      for (const [userId, token] of Object.entries(stored?.[this.contextAccountKey()] ?? {})) {
+        if (typeof token === "string" && token && !this.contextTokens.has(userId)) this.contextTokens.set(userId, token);
+      }
+    } catch {
+      logger.warn("Could not restore WeChat reply context");
+    }
+  }
+
+  private rememberContextToken(userId: string, token: string): void {
+    if (this.contextTokens.get(userId) === token) return;
+    this.contextTokens.set(userId, token);
+    if (!this.config.accountId || !SecureSettingsRepository.isInitialized()) return;
+    try {
+      const repository = SecureSettingsRepository.getInstance();
+      const stored = repository.load<Record<string, Record<string, string>>>("weixin-reply-context") ?? {};
+      const key = this.contextAccountKey();
+      stored[key] = { ...stored[key], [userId]: token };
+      repository.save("weixin-reply-context", stored);
+    } catch {
+      logger.warn("Could not persist WeChat reply context");
+    }
   }
 
   private async sendItem(

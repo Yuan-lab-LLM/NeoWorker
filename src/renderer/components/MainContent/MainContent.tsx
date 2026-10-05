@@ -2,6 +2,8 @@ import { workspaceDisplayName } from "../../utils/workspace-identity";
 import { serializeNewsTaskMessage, type NewsTaskContext } from "../../../shared/news-task-draft";
 import { NewsTaskSourceCard } from "../NewsTaskSourceCard";
 import { ExecutionProcessDisclosure } from "./ExecutionProcessDisclosure";
+import { LiveTaskProgress } from "./LiveTaskProgress";
+import { deriveLiveTaskProgress } from "./live-task-progress";
 import {
   memo,
   useState,
@@ -117,6 +119,7 @@ import {
   resolveTaskOutputSummaryFromTask,
 } from "../../utils/task-outputs";
 import { deriveTaskWorkTiming, isTaskActivelyWorking } from "../../utils/task-working-state";
+import { usePendingTaskDispatches } from "../../hooks/use-pending-task-dispatches";
 import { shouldShowPersistentNeedsUserActionBanner } from "../../utils/task-completion-ux";
 import {
   filterAdjacentDuplicateTimelineFailures,
@@ -570,11 +573,10 @@ function getLocalizedSessionWorkspaceLabel(workspace?: Workspace | null, title?:
 import {
   SkillParameterModal,
   expandSkillPrompt,
-  replaceSkillAttachmentPathsForComposer,
   type SkillParameterAttachment,
   type SkillParameterFormValues,
 } from "../SkillParameterModal";
-import { buildSlashSkillPrompt } from "../skill-parameter-utils";
+import { buildSkillComposerSelection } from "../skill-parameter-utils";
 import { DocumentAwareFileModal } from "../DocumentAwareFileModal";
 import { ThemeIcon } from "../ThemeIcon";
 import { FEATURE_VISIBILITY } from "../../feature-visibility";
@@ -754,6 +756,7 @@ interface MainContentProps {
       executionMode?: ExecutionMode;
       taskDomain?: TaskDomain;
       requestedSkillId?: string;
+      requestedSkillParameters?: Record<string, string | number | boolean>;
       permissionMode?: PermissionMode;
       shellAccess?: boolean;
       integrationMentions?: IntegrationMentionSelection[];
@@ -782,11 +785,12 @@ interface MainContentProps {
   onStopTask?: () => void;
   onEnableShellForPausedTask?: () => void | Promise<void>;
   onContinueWithoutShellForPausedTask?: () => void | Promise<void>;
-  onWrapUpTask?: () => void;
+  onWrapUpTask?: (teamRunId?: string) => void;
   onOpenApproval?: (approval: ApprovalRequest) => void;
   inputRequest?: InputRequest | null;
   pendingInputRequests?: InputRequest[];
   composerDraftRequest?: {
+    parameterSkill?: CustomSkill;
     newsContext?: NewsTaskContext;
     id: number;
     value: string;
@@ -2651,6 +2655,7 @@ const TaskConversationFlow = memo(function TaskConversationFlow(props: any) {
                   <div key="dispatched-agents" className="collaborative-thoughts-main">
                     {collaborativeRun ? (
                       <CollaborativeSummaryPanel
+                        key={collaborativeRun.id}
                         collaborativeRun={collaborativeRun}
                         childTasks={panelTasks}
                         childEvents={panelEvents}
@@ -2808,7 +2813,7 @@ const TaskConversationFlow = memo(function TaskConversationFlow(props: any) {
                   isHistoricalBlock: !isCurrentTurnActionBlock,
                 });
                 const expanded = resolveDisclosureExpanded({
-                  forceExpanded: isActive || actionBlockStatus === "needs_approval",
+                  forceExpanded: actionBlockStatus === "needs_approval",
                   // Enabling execution records must not dump every raw step into
                   // the conversation. Keep completed blocks collapsed until the
                   // user explicitly opens the one they want to inspect.
@@ -2892,7 +2897,7 @@ const TaskConversationFlow = memo(function TaskConversationFlow(props: any) {
                             })
                           }
                         >
-                          ↑ Show all ({renderableCount} steps)
+                          {translate("task.progress.showAllSteps", "Show all {count} steps", { count: renderableCount })}
                         </button>
                       )}
                       {isBlockShowAll && (
@@ -5061,7 +5066,7 @@ function MainContentComponent({
   }, [markStartupOnce, selectedTaskId, task?.id]);
 
   // One persisted switch controls execution details for both live and finished turns.
-  const [verboseSteps, setVerboseSteps] = useState(true);
+  const [verboseSteps, setVerboseSteps] = useState(false);
   const isReplayMode = replayControls?.isReplayMode ?? false;
   const includeExecutionRecordEvents = shouldIncludeExecutionRecordEvents({
     verboseSteps,
@@ -5131,6 +5136,7 @@ function MainContentComponent({
   const [composerSkillContext, setComposerSkillContext] = useState<{
     skillId: string;
     skillLabel: string;
+    parameters?: SkillParameterFormValues;
   } | null>(null);
   const [activeWelcomeSuggestionDraft, setActiveWelcomeSuggestionDraft] =
     useState<ActiveWelcomeSuggestionDraft | null>(null);
@@ -5169,7 +5175,8 @@ function MainContentComponent({
   const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
   const [isPreparingMessage, setIsPreparingMessage] = useState(false);
   const [isQueueingFollowUp, setIsQueueingFollowUp] = useState(false);
-  const [activeFollowUpDispatchCount, setActiveFollowUpDispatchCount] = useState(0);
+  const pendingTaskDispatches = usePendingTaskDispatches(composerDraftCacheKey, task, rawEvents);
+  const activeFollowUpDispatchCount = pendingTaskDispatches.count;
   const queueFollowUpInFlightRef = useRef(false);
   const submissionSequenceRef = useRef(0);
   const [composerProcessingStage, setComposerProcessingStage] = useState<
@@ -5201,7 +5208,6 @@ function MainContentComponent({
     setIsQueueingFollowUp(false);
     setComposerProcessingStage("idle");
     queueFollowUpInFlightRef.current = false;
-    setActiveFollowUpDispatchCount(0);
     pendingProgrammaticResizeRef.current = true;
   }, [composerDraftCacheKey]);
 
@@ -5678,7 +5684,9 @@ function MainContentComponent({
   const [selectedSkillForParams, setSelectedSkillForParams] =
     useState<SelectedSkillModalState | null>(null);
   // Track wrap-up requested state for button feedback
-  const [wrappingUp, setWrappingUp] = useState(false);
+  const [wrappingUpRunId, setWrappingUpRunId] = useState<string | null>(null);
+  const wrappingUp = collaborativeRun?.status === "running" &&
+    collaborativeRun.phase !== "complete" && wrappingUpRunId === collaborativeRun.id;
 
   useEffect(() => {
     let cancelled = false;
@@ -6365,13 +6373,15 @@ function MainContentComponent({
     isTaskWorkingForDuration ||
     activeFollowUpDispatchCount > 0;
 
-  // Reset wrappingUp state when task stops working or task changes
+  // Wrap-up belongs to a team run, not to every subsequent query in the chat.
   useEffect(() => {
-    if (!isTaskWorking) setWrappingUp(false);
-  }, [isTaskWorking]);
+    if (!isTaskWorking || collaborativeRun?.status !== "running") {
+      setWrappingUpRunId(null);
+    }
+  }, [isTaskWorking, collaborativeRun?.id, collaborativeRun?.status]);
   useEffect(() => {
-    setWrappingUp(false);
-  }, [task?.id]);
+    setWrappingUpRunId(null);
+  }, [task?.id, latestUserMessageTimestamp]);
 
   // Derive current in-progress step from events (for step feedback)
   const currentStep = useMemo(() => {
@@ -6539,6 +6549,11 @@ function MainContentComponent({
   const progressHeartbeat = useMemo(
     () => (isTaskWorking ? deriveProgressHeartbeat(events, task?.id, Date.now()) : ""),
     [events, isTaskWorking, task?.id, liveWorkDuration],
+  );
+  const liveTaskProgress = useMemo(
+    () => task && isTaskWorking && !isReplayMode && !isChatTask
+      ? deriveLiveTaskProgress(events, task.id, Date.now()) : null,
+    [events, task?.id, isTaskWorking, isReplayMode, isChatTask, liveWorkDuration],
   );
 
   const continuationStatusChip = useMemo(() => {
@@ -6928,16 +6943,10 @@ function MainContentComponent({
       .getAppearanceSettings()
       .then((settings) => {
         const hasExplicitVerbosityChoice = settings.timelineVerbosityConfigured === true;
-        setVerboseSteps(!hasExplicitVerbosityChoice || settings.timelineVerbosity === "verbose");
-        if (!hasExplicitVerbosityChoice && settings.timelineVerbosity !== "verbose") {
-          void window.electronAPI.saveAppearanceSettings({
-            timelineVerbosity: "verbose",
-            timelineVerbosityConfigured: false,
-          });
-        }
+        setVerboseSteps(hasExplicitVerbosityChoice && settings.timelineVerbosity === "verbose");
       })
       .catch(() => {
-        // Keep detailed execution history visible on load failure.
+        // Keep the compact progress view on load failure.
       });
   }, []);
 
@@ -7753,18 +7762,12 @@ function MainContentComponent({
       );
       setAttachmentError(null);
     }
-    const composerValues = replaceSkillAttachmentPathsForComposer(values, attachments);
-    const draft =
-      modalState.launchMode === "slash"
-        ? buildSlashSkillPrompt(modalState.commandName || modalState.skill.id, composerValues)
-        : expandSkillPrompt(modalState.skill, composerValues);
+    const selection = buildSkillComposerSelection(modalState.skill, values, attachments);
+    const draft = selection.draft;
     pendingProgrammaticResizeRef.current = true;
     setInputValue(draft);
     setIntegrationMentionSpans([]);
-    setComposerSkillContext({
-      skillId: modalState.skill.id,
-      skillLabel: getLocalizedSkillText(modalState.skill).name,
-    });
+    setComposerSkillContext(selection.context);
     requestAnimationFrame(() => {
       promptInputRef.current?.focus();
       promptInputRef.current?.setSelectionRange(draft.length, draft.length);
@@ -8152,6 +8155,9 @@ function MainContentComponent({
     if (!composerDraftRequest) return;
 
     setNewsContext(composerDraftRequest.newsContext || null);
+    if (composerDraftRequest.parameterSkill?.parameters?.length) {
+      setSelectedSkillForParams({ skill: composerDraftRequest.parameterSkill, launchMode: "skill_menu" });
+    }
     composerDraftValueRef.current = composerDraftRequest.value;
     setInputValue(composerDraftRequest.value);
     setHasLiveComposerDraft(Boolean(composerDraftRequest.value.trim()));
@@ -8169,6 +8175,10 @@ function MainContentComponent({
     pendingProgrammaticResizeRef.current = true;
 
     const frame = requestAnimationFrame(() => {
+      if (composerDraftRequest.parameterSkill?.parameters?.length) {
+        onComposerDraftConsumed?.(composerDraftRequest.id);
+        return;
+      }
       const input = promptInputRef.current;
       if (!input) return;
 
@@ -8828,7 +8838,7 @@ function MainContentComponent({
     const isCurrentSubmission = () => submissionSequenceRef.current === submissionId;
     const isFollowUpQueueSubmission = Boolean(task?.id && isFollowUpActive);
     let followUpDispatchStarted = false;
-    let followUpDispatchKey: string | null = null;
+    let finishFollowUpDispatch: (() => void) | undefined;
     if (isFollowUpQueueSubmission) {
       if (queueFollowUpInFlightRef.current) return;
     } else if (isUploadingAttachments || isPreparingMessage) {
@@ -8872,6 +8882,7 @@ function MainContentComponent({
         ? pendingAttachmentsRef.current
         : pendingAttachments),
     ];
+    const submittedSkillContext = composerSkillContext;
     let submittedComposerCleared = false;
 
     const clearSubmittedComposerDraft = () => {
@@ -8882,6 +8893,7 @@ function MainContentComponent({
       setHasLiveComposerDraft(false);
       cacheComposerDraft(submittedAttachmentDraftKey, "");
       setInputValue("");
+      setComposerSkillContext(null);
       pendingAttachmentsRef.current = [];
       cacheComposerAttachmentDraft(submittedAttachmentDraftKey, []);
       setPendingAttachmentsState([]);
@@ -8908,6 +8920,7 @@ function MainContentComponent({
         setHasLiveComposerDraft(Boolean(submittedInputValue.trim()));
         cacheComposerDraft(submittedAttachmentDraftKey, submittedInputValue);
         setInputValue(submittedInputValue);
+        setComposerSkillContext(submittedSkillContext);
       }
       if (pendingAttachmentsRef.current.length === 0 && submittedAttachments.length > 0) {
         pendingAttachmentsRef.current = submittedAttachments;
@@ -9329,7 +9342,7 @@ function MainContentComponent({
                     ? { humanInputPolicy: "legacy_interactive" as const }
                     : {}),
                   ...(composerSkillContext
-                    ? { requestedSkillId: composerSkillContext.skillId }
+                    ? { requestedSkillId: composerSkillContext.skillId, requestedSkillParameters: composerSkillContext.parameters }
                     : {}),
                 },
               }
@@ -9375,8 +9388,7 @@ function MainContentComponent({
         // submitted query in both the timeline and the composer.
         clearSubmittedComposerDraft();
         followUpDispatchStarted = true;
-        followUpDispatchKey = composerDraftCacheKeyRef.current;
-        setActiveFollowUpDispatchCount((count) => count + 1);
+        finishFollowUpDispatch = pendingTaskDispatches.begin();
         const followUpPromise = onSendMessage(
           message,
           imagePayload,
@@ -9385,7 +9397,7 @@ function MainContentComponent({
             ...(executionModeDirty ? { executionMode } : {}),
             ...(taskDomainDirty ? { taskDomain } : {}),
             ...(composerSkillContext
-              ? { requestedSkillId: composerSkillContext.skillId }
+              ? { requestedSkillId: composerSkillContext.skillId, requestedSkillParameters: composerSkillContext.parameters }
               : {}),
             integrationMentions: submittedIntegrationMentions,
             ...activeComposerPermissionOverrides,
@@ -9476,12 +9488,7 @@ function MainContentComponent({
           setIsQueueingFollowUp(false);
         }
       }
-      if (followUpDispatchStarted && followUpDispatchKey) {
-        const dispatchKey = followUpDispatchKey;
-        if (composerDraftCacheKeyRef.current === dispatchKey) {
-          setActiveFollowUpDispatchCount((count) => Math.max(0, count - 1));
-        }
-      }
+      finishFollowUpDispatch?.();
       if (isFollowUpQueueSubmission && !followUpDispatchStarted) {
         queueFollowUpInFlightRef.current = false;
         setIsQueueingFollowUp(false);
@@ -11382,7 +11389,7 @@ function MainContentComponent({
         >
           {workDurationLabel}
         </span>
-        {isTaskWorking && progressHeartbeat && (
+        {isTaskWorking && !liveTaskProgress && progressHeartbeat && (
           <span
             className="timeline-controls-progress"
             aria-live="polite"
@@ -11391,7 +11398,7 @@ function MainContentComponent({
             {progressHeartbeat}
           </span>
         )}
-        {isTaskWorking && continuationStatusChip && (
+        {isTaskWorking && verboseSteps && continuationStatusChip && (
           <span
             className="header-continuation-chip"
             title={translate("task.continuationStatus", "Adaptive continuation status")}
@@ -11415,6 +11422,8 @@ function MainContentComponent({
       isTaskWorking,
       isTaskWorkingForDuration,
       progressHeartbeat,
+      liveTaskProgress,
+      verboseSteps,
       transcriptMode,
       workDurationLabel,
     ],
@@ -13320,6 +13329,7 @@ function MainContentComponent({
             )}
 
             {conversationFlow}
+            {liveTaskProgress && <LiveTaskProgress state={liveTaskProgress} />}
           </div>
         </div>
       </div>
@@ -13371,6 +13381,7 @@ function MainContentComponent({
           {/* Collaborative agent lines — extension of input box, inside same container */}
           {collaborativeRun && (onOpenChildAgentSidebar || onSelectChildTask) && (
             <CollaborativeAgentLines
+              key={collaborativeRun.id}
               collaborativeRun={collaborativeRun}
               childTasks={childTasks}
               childEvents={childEvents}
@@ -13379,11 +13390,12 @@ function MainContentComponent({
                 !!task && ["completed", "failed", "cancelled"].includes(task.status)
               }
               onWrapUp={
-                onWrapUpTask
+                onWrapUpTask && collaborativeRun.status === "running" &&
+                  collaborativeRun.phase !== "complete"
                   ? () => {
                       if (!wrappingUp) {
-                        setWrappingUp(true);
-                        onWrapUpTask();
+                        setWrappingUpRunId(collaborativeRun.id);
+                        onWrapUpTask(collaborativeRun.id);
                       }
                     }
                   : undefined
@@ -13790,7 +13802,10 @@ function MainContentComponent({
                   </button>
                   <button
                     className="stop-btn-simple"
-                    onClick={onStopTask}
+                    onClick={() => {
+                      pendingTaskDispatches.clear();
+                      onStopTask();
+                    }}
                     title={translate("composer.stopTask", "Stop task")}
                     aria-label={translate("composer.stopTask", "Stop task")}
                   >

@@ -8074,6 +8074,22 @@ export class MessageRouter {
     await this.clearProgressRelayMessage(taskId);
   }
 
+  /** A desktop follow-up owns its response; do not reuse an earlier chat route. */
+  detachTaskForDesktop(taskId: string): void {
+    const pending = this.pendingTaskResponses.get(taskId);
+    const session = this.sessionRepo.findByTaskId(taskId);
+    const sessionId = session?.id || pending?.sessionId;
+    if (!sessionId && !pending) return;
+    if (sessionId) {
+      this.bumpRemoteSessionGeneration(sessionId);
+      this.sessionManager.unlinkSessionFromTask(sessionId);
+    }
+    this.detachedTaskResponseIds.add(taskId);
+    this.suppressedTaskUpdateIds.add(taskId);
+    this.clearStreamingUpdate(taskId);
+    this.pendingTaskResponses.delete(taskId);
+  }
+
   /**
    * Finalize a Telegram draft stream (if active) and log the outgoing message.
    * This is primarily used for follow-up replies which end with follow_up_completed

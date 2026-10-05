@@ -1255,7 +1255,7 @@ textarea::placeholder {
 }
 
 .theme-light.visual-oblivion .sidebar-header {
-  padding-top: 8px;
+  padding: 8px var(--cw-space-3) 0;
 }
 
 .theme-light.visual-oblivion .sidebar .cli-header-actions.sidebar-nav {
@@ -1284,7 +1284,9 @@ textarea::placeholder {
   min-height: 34px;
   height: 34px;
   margin: 0;
-  padding-inline: var(--cw-space-3) !important;
+  /* Center the icon on the same 28px axis as the brand mark. Account for
+   * the new-work button's border so its icon aligns with the plain rows. */
+  padding-inline: calc(var(--cw-space-3) / 2 - 1px) !important;
   border: 1px solid var(--cw-hairline) !important;
   border-radius: var(--cw-radius-md);
   color: var(--cw-charcoal) !important;
@@ -1383,7 +1385,7 @@ textarea::placeholder {
   position: relative;
   min-height: 32px;
   height: 32px;
-  padding-inline: var(--cw-space-3) !important;
+  padding-inline: calc(var(--cw-space-3) / 2) !important;
   border: 0 !important;
   border-radius: var(--cw-radius-md);
   color: var(--cw-slate) !important;

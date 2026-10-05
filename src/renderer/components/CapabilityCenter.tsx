@@ -100,6 +100,8 @@ import { classifySkillScene } from "../utils/skill-scene-classifier";
 import { NeoWorkerPageHeader } from "./NeoWorkerPageHeader";
 import { MCPSettings } from "./MCPSettings";
 import "./capability-center.css";
+import { SkillLibraryCard } from "./SkillLibraryCard";
+import { buildSkillUseSelection, canUseSkillFromCatalog, getSkillCardText, getSkillWorkspacePath, type SkillUseSelection } from "../utils/skill-card-presentation";
 
 type CapabilityTab = "experts" | "skills" | "bundles" | "connectors" | "mcp";
 type CapabilityCenterMode = "tools" | "teamExperts";
@@ -175,11 +177,7 @@ interface CapabilityCenterProps {
     title: string,
     prompt: string,
   ) => void | Promise<unknown>;
-  onUseSkill?: (selection: {
-    skillId: string;
-    skillLabel: string;
-    prompt: string;
-  }) => void | Promise<unknown>;
+  onUseSkill?: (selection: SkillUseSelection) => void | Promise<unknown>;
   onUseBundle?: (selection: {
     bundleId: string;
     bundleLabel: string;
@@ -1466,6 +1464,7 @@ export function CapabilityCenter({
   const [loading, setLoading] = useState(true);
   const [roles, setRoles] = useState<CapabilityRole[]>([]);
   const [skills, setSkills] = useState<SkillStatusEntry[]>([]);
+  const [skillWorkspacePath, setSkillWorkspacePath] = useState<string>("");
   const [connectors, setConnectors] = useState<
     Array<{ id: string; name: string; description?: string; enabled: boolean }>
   >([]);
@@ -1530,10 +1529,16 @@ export function CapabilityCenter({
     setSkillCatalogLimit(12);
   }, [skillScene]);
 
-  const requestRefresh = useCallback(() => {
+  const requestRefresh = useCallback(async () => {
     setLoading(true);
-    setRefreshVersion((version) => version + 1);
-  }, []);
+    try {
+      if (activeTab === "skills") await window.electronAPI.reloadCustomSkills();
+      setRefreshVersion((version) => version + 1);
+    } catch (error) {
+      console.warn("[CapabilityCenter] Failed to refresh skills", error);
+      setLoading(false);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1549,6 +1554,7 @@ export function CapabilityCenter({
           ]);
         if (cancelled) return;
         setRoles(nextRoles);
+        setSkillWorkspacePath(getSkillWorkspacePath(skillReport.workspaceDir));
         setSkills(
           skillReport.skills.filter(isSkillVisibleForCurrentProductSupport),
         );
@@ -2209,7 +2215,13 @@ export function CapabilityCenter({
               </span>
               <input
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  if (activeTab === "skills" && event.target.value.trim()) {
+                    setSkillScene("all");
+                    setSkillFilter("all");
+                  }
+                }}
                 placeholder={translate(
                   "capabilities.searchNamed",
                   "Search {name}…",
@@ -2460,39 +2472,30 @@ export function CapabilityCenter({
                 {visibleSkills.length ? (
                   <>
                     <section
-                      className="skill-workspace-feature-stage"
+                      className="skill-workspace-feature-stage skill-library-stage"
                       aria-labelledby="skill-featured-heading"
                     >
                       <div className="skill-workspace-section-heading">
                         <div>
-                          <span>
-                            <PhSparkle size={15} weight="fill" />{" "}
-                            {translate(
-                              "generated.components.capabilitycenter.1352.273",
-                              "Today's recommendation",
-                            )}
-                          </span>
                           <h4 id="skill-featured-heading">
                             {translate(
-                              "generated.components.capabilitycenter.1354.274",
-                              "Start with the most commonly used abilities first",
+                              "skills.card.sectionTitle",
+                              "Choose a skill to get started",
                             )}
                           </h4>
                         </div>
                       </div>
-                      <div className="skill-workspace-highlight-grid">
-                        {highlightedSkills.map((skill, index) => (
-                          <PolishedSkillCard
+                      <div className="skill-workspace-highlight-grid skill-library-grid">
+                        {highlightedSkills.map((skill) => (
+                          <SkillLibraryCard
                             key={skill.id}
                             skill={skill}
+                            icon={getSkillPhosphorIcon(skill)}
                             onOpen={() => setSelectedSkill(skill)}
-                            featured={index === 0}
-                            featuredArt={
-                              selectedSkillScene?.id === "research" ||
-                              !selectedSkillScene
-                                ? "/capability/research-featured-3d.webp"
-                                : selectedSkillScene.image
-                            }
+                            onUse={() => {
+                              const selection = buildSkillUseSelection(skill, skillWorkspacePath);
+                              if (selection) void onUseSkill?.(selection);
+                            }}
                           />
                         ))}
                       </div>
@@ -3109,7 +3112,9 @@ export function CapabilityCenter({
           language={skillDetailLanguage}
           onLanguageChange={setSkillDetailLanguage}
           onClose={() => setSelectedSkill(null)}
-          onUse={(selection) => {
+          onUse={() => {
+            const selection = buildSkillUseSelection(selectedSkill, skillWorkspacePath);
+            if (!selection) return;
             setSelectedSkill(null);
             void onUseSkill?.(selection);
           }}
@@ -4143,7 +4148,7 @@ function SkillDetailDrawer({
     language,
   );
   const invocationCommand = `/${skill.id}`;
-  const displayName = localized.name || skill.name || skill.id;
+  const displayName = getSkillCardText(skill, language).name;
   const upstreamExamplePrompt = routing?.examples?.positive
     ?.find((example) => example.trim())
     ?.trim();
@@ -4153,7 +4158,7 @@ function SkillDetailDrawer({
     language,
   });
   const userInvocable = skill.invocation?.userInvocable !== false;
-  const canUse = ready && userInvocable;
+  const canUse = canUseSkillFromCatalog(skill);
   const missingRequirements = [
     ...skill.missing.bins,
     ...skill.missing.anyBins,
@@ -4394,6 +4399,8 @@ function getSkillPhosphorIcon(skill: SkillStatusEntry): PhosphorIcon {
     .filter(Boolean)
     .join(" ")
     .toLocaleLowerCase();
+  if (/^(writing|文档|写作|内容)$/i.test(skill.category || "")) return NotePencil;
+  if (/(知识问答|知识库|knowledge|\brag\b)/i.test(text)) return PhMagnifyingGlass;
   if (/(csv|表格|spreadsheet)/.test(text)) return FileCsv;
   if (/(数据|数据库|database|data)/.test(text)) return PhDatabase;
   if (/(财务|金融|估值|finance|dcf|chart)/.test(text)) return ChartLineUp;
@@ -4403,145 +4410,6 @@ function getSkillPhosphorIcon(skill: SkillStatusEntry): PhosphorIcon {
   if (/(法务|法律|合同|legal|law|contract)/.test(text)) return Scales;
   if (/(写作|文档|内容|write|document|content)/.test(text)) return NotePencil;
   return PhSparkle;
-}
-
-function PolishedSkillCard({
-  skill,
-  onOpen,
-  featured,
-  featuredArt,
-}: {
-  skill: SkillStatusEntry;
-  onOpen: () => void;
-  featured: boolean;
-  featuredArt?: string;
-}) {
-  const localized = getLocalizedSkillText(skill);
-  const ready = skill.eligible && !skill.disabled;
-  const visual = getSemanticIconVisual({
-    id: skill.id,
-    name: localized.name || skill.name || skill.id,
-    description: localized.description || skill.description,
-    category: skill.category,
-    fallback: Wrench,
-  });
-  const palette = ICON_TONES[visual.tone];
-  const Icon = getSkillPhosphorIcon(skill);
-
-  return (
-    <article
-      className={`polished-skill-card${featured ? " is-featured" : ""}`}
-      style={
-        {
-          "--polished-skill-tone": palette.foreground,
-          "--polished-skill-tint": palette.background,
-          "--polished-skill-border": palette.border,
-        } as React.CSSProperties
-      }
-    >
-      {featured && featuredArt && (
-        <img
-          className={`polished-skill-featured-art${featuredArt.includes("research-featured") ? "" : " is-scene-photo"}`}
-          src={featuredArt}
-          alt=""
-        />
-      )}
-      <div className="polished-skill-card-topline">
-        <span className="polished-skill-icon">
-          <Icon size={featured ? 24 : 20} weight="duotone" />
-        </span>
-        <span className={`polished-skill-state${ready ? " is-ready" : ""}`}>
-          {ready ? (
-            <CheckCircle size={14} weight="fill" />
-          ) : (
-            <WarningCircle size={14} weight="fill" />
-          )}
-          {ready
-            ? translate(
-                "generated.components.capabilitycenter.2661.414",
-                "Can be used directly",
-              )
-            : skill.disabled
-              ? translate(
-                  "generated.components.capabilitycenter.2661.415",
-                  "Deactivated",
-                )
-              : translate(
-                  "generated.components.capabilitycenter.2661.416",
-                  "Requires configuration",
-                )}
-        </span>
-      </div>
-      <div className="polished-skill-copy">
-        <span className="polished-skill-category">
-          {localized.category ||
-            translate(
-              "generated.components.capabilitycenter.2665.417",
-              "Professional workflow",
-            )}
-        </span>
-        <h5>{localized.name || skill.name || skill.id}</h5>
-        <p>
-          {localized.description ||
-            skill.description ||
-            translate(
-              "generated.components.capabilitycenter.2667.418",
-              "Supplement experts with dedicated execution capabilities.",
-            )}
-        </p>
-      </div>
-      <div
-        className="polished-skill-tags"
-        aria-label={translate(
-          "generated.components.capabilitycenter.2669.419",
-          "Skill tag",
-        )}
-      >
-        <span>
-          {localized.category ||
-            translate(
-              "generated.components.capabilitycenter.2670.420",
-              "Research",
-            )}
-        </span>
-        <span>
-          {featured
-            ? translate(
-                "generated.components.capabilitycenter.2671.421",
-                "Search",
-              )
-            : translate(
-                "generated.components.capabilitycenter.2671.422",
-                "analysis",
-              )}
-        </span>
-        <span>
-          {featured
-            ? translate(
-                "generated.components.capabilitycenter.2672.423",
-                "Trend",
-              )
-            : translate(
-                "generated.components.capabilitycenter.2672.424",
-                "Insight",
-              )}
-        </span>
-      </div>
-      <div className="polished-skill-card-footer">
-        <button
-          type="button"
-          className={featured ? "is-primary" : ""}
-          onClick={onOpen}
-        >
-          {translate(
-            "generated.components.capabilitycenter.2676.425",
-            "View skills",
-          )}
-          <PhArrowRight size={14} weight="bold" />
-        </button>
-      </div>
-    </article>
-  );
 }
 
 function SkillResultRow({

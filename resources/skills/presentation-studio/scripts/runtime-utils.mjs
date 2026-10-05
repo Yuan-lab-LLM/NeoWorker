@@ -12,16 +12,15 @@ export function scriptDir(importMetaUrl) {
 
 export function createAppRequire(importMetaUrl) {
   const dir = scriptDir(importMetaUrl);
-  const candidates = [
-    path.resolve(dir, "../../../../package.json"),
-    path.resolve(dir, "../../../app.asar/package.json"),
-    path.resolve(dir, "../../../app.asar.unpacked/package.json"),
-    path.resolve(process.cwd(), "package.json"),
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) return createRequire(candidate);
+  // Scripts run under plain Node, which cannot traverse Electron's virtual asar
+  // filesystem. Anchor require in the unpacked dependency tree even though it
+  // has no package.json. Never fall back to a user's unrelated workspace package.
+  const unpacked = path.resolve(dir, "../../../app.asar.unpacked");
+  if (fs.existsSync(path.join(unpacked, "node_modules"))) {
+    return createRequire(path.join(unpacked, "presentation-runtime.cjs"));
   }
+  const developmentPackage = path.resolve(dir, "../../../../package.json");
+  if (fs.existsSync(developmentPackage)) return createRequire(developmentPackage);
   return createRequire(importMetaUrl);
 }
 
@@ -54,8 +53,12 @@ export function which(command) {
 }
 
 export function resolveLibreOffice() {
+  const bundled = path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies");
   const candidates = [
     process.env.LIBREOFFICE_PATH,
+    process.platform === "darwin"
+      ? path.join(bundled, "native/libreoffice-headless/libreoffice/LibreOfficeDev.app/Contents/MacOS/soffice")
+      : null,
     which("soffice"),
     process.platform === "darwin"
       ? "/Applications/LibreOffice.app/Contents/MacOS/soffice"
@@ -65,6 +68,12 @@ export function resolveLibreOffice() {
       : null,
   ];
   return candidates.find((candidate) => candidate && fs.existsSync(candidate)) || null;
+}
+
+export function resolvePdfToPpm() {
+  const bundled = path.join(os.homedir(), ".cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override/pdftoppm");
+  return [process.env.PDFTOPPM_PATH, bundled, which("pdftoppm")]
+    .find(candidate => candidate && fs.existsSync(candidate)) || null;
 }
 
 export function resolvePlatformFonts(language = "auto") {

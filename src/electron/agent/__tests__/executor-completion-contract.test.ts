@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { createHash } from "crypto";
 import { TaskExecutor } from "../executor";
 import {
   buildCompletionContract,
@@ -726,6 +727,82 @@ describe("TaskExecutor completion contract integration", () => {
     expect(executor.daemon.completeTask).not.toHaveBeenCalled();
   });
 
+  it.each(["passed", "aliased", "failed", "changed"])("recovers a shell-written Studio output on timeout only with matching successful QA: %s", async (status) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "studio-timeout-"));
+    try {
+      const workspace = path.join(root, "workspace");
+      fs.mkdirSync(workspace);
+      const workspaceAlias = path.join(root, "workspace-alias");
+      fs.symlinkSync(workspace, workspaceAlias, "junction");
+      const artifactRoot = path.join(status === "aliased" ? workspaceAlias : workspace, "artifacts/skills/task-1/presentation-studio");
+      const project = path.join(artifactRoot, "presentation-studio");
+      const output = path.join(project, "output/presentation.pptx");
+      fs.mkdirSync(path.dirname(output), { recursive: true });
+      fs.writeFileSync(output, Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from("[Content_Types].xml\0ppt/presentation.xml\0"), Buffer.alloc(2048)]));
+      const outputSha256 = createHash("sha256").update(fs.readFileSync(output)).digest("hex");
+      fs.writeFileSync(path.join(project, "qa-report.json"), JSON.stringify({ status: status === "failed" ? "failed" : "passed", errors: status === "failed" ? ["overflow"] : [], slideCount: 20, outputPath: fs.realpathSync(output), outputSha256, visualInspection: "pending" }));
+      // The agent began another revision but never built it. Recover only the
+      // published 20-page version; never imply the 21-page source is delivered.
+      fs.writeFileSync(path.join(project, "presentation-plan.json"), JSON.stringify({ slides: Array(21).fill({}) }));
+      if (status === "changed") fs.appendFileSync(output, "unverified edit");
+      const instance = createExecuteHarness({ prompt: "基于材料生成一个 PPT 文档", lastOutput: "已完成全部修改和检查。" }) as Any;
+      instance.workspace.path = status === "aliased" ? workspaceAlias : workspace;
+      instance.task.agentConfig = { executionMode: "execute" };
+      instance.getActivePresentationWorkflow = () => "presentation-studio";
+      instance.getAppliedSkillApplication = () => ({ contextDirectives: { artifactDirectories: [artifactRoot] } });
+      instance.deliveredPresentationArtifactPaths = new Set();
+      const created: string[] = [];
+      instance.fileOperationTracker.getCreatedFiles = () => created;
+      instance.fileOperationTracker.recordFileCreation = (file: string) => created.push(file);
+      instance.daemon.registerArtifact = vi.fn();
+      instance.finalizeTaskBestEffort = vi.fn();
+      instance.buildTimeoutRecoveryAnswer = vi.fn();
+      instance.taskRequiresSimplifiedChineseOutput = () => true;
+      const error = Object.assign(new Error("Hermes ACP session/prompt timed out"), { code: "REQUEST_TIMEOUT" });
+      const recovered = await instance.finalizeWithTimeoutRecovery(error);
+      const approved = status === "passed" || status === "aliased";
+      expect(recovered).toBe(approved);
+      expect(instance.buildTimeoutRecoveryAnswer).not.toHaveBeenCalled();
+      if (approved) {
+        expect(instance.daemon.registerArtifact).toHaveBeenCalledWith("task-1", output, expect.any(String));
+        expect(instance.finalizeTaskBestEffort).toHaveBeenCalledWith(expect.stringContaining(output), expect.any(String), expect.objectContaining({ terminalKind: "timed_out", failureClass: "budget_exhausted" }));
+        expect(instance.finalizeTaskBestEffort.mock.calls[0][0]).toContain("阶段版本");
+        expect(instance.finalizeTaskBestEffort.mock.calls[0][0]).not.toContain("已完成全部");
+      } else expect(instance.finalizeTaskBestEffort).not.toHaveBeenCalled();
+      expect(instance.classifyFailure(error)).toBe("budget_exhausted");
+      expect(instance.buildTaskFailureMessage(error, "budget_exhausted")).toContain("时间上限");
+      expect(instance.buildFollowUpFailureMessage(error)).toContain("时间上限");
+      if (approved) {
+        instance.deliveredPresentationArtifactPaths.clear();
+        instance.emitEvent = vi.fn();
+        instance.publishPresentationBuildCheckpoint("run_command", { success: true, exitCode: 0 }, { command: "node /skill/scripts/build_and_qa.mjs --project-dir project" });
+        expect(instance.emitEvent).toHaveBeenCalledWith("progress_update", expect.objectContaining({ phase: "presentation_review", path: output }));
+        instance.emitEvent.mockClear();
+        instance.publishPresentationBuildCheckpoint("run_command", { success: true, exitCode: 0 }, { command: "node /skill/scripts/build_and_qa.mjs --project-dir project" });
+        expect(instance.emitEvent).not.toHaveBeenCalledWith("progress_update", expect.anything());
+        expect(instance.taskCompleted).toBe(false);
+        instance.deliveredPresentationArtifactPaths.clear();
+        instance.emitEvent.mockClear();
+        instance.publishPresentationBuildCheckpoint("execute_code", { exit_code: 0, timed_out: false, error: null }, { language: "shell", code: "node /skill/scripts/build_and_qa.mjs --project-dir project" });
+        expect(instance.emitEvent).toHaveBeenCalledWith("progress_update", expect.objectContaining({ phase: "presentation_review", path: output }));
+      }
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it.each([
+    ["execute_code", { exit_code: 1 }, { language: "shell" }],
+    ["execute_code", { exit_code: 0, timed_out: true }, { language: "shell" }],
+    ["execute_code", { exit_code: 0, error: "render failed" }, { language: "shell" }],
+    ["execute_code", { exit_code: 0 }, { language: "python" }],
+    ["run_command", { success: false, exitCode: 0 }, {}],
+  ])("does not publish an unsuccessful or non-shell build checkpoint: %s %j", (tool, result, input) => {
+    const instance = createExecuteHarness({ prompt: "生成 PPT", lastOutput: "" }) as Any;
+    instance.getActivePresentationWorkflow = () => "presentation-studio";
+    instance.finalizePresentationArtifactDelivery = vi.fn();
+    instance.publishPresentationBuildCheckpoint(tool, result, { ...input, command: "node build_and_qa.mjs", code: "node build_and_qa.mjs" });
+    expect(instance.finalizePresentationArtifactDelivery).not.toHaveBeenCalled();
+  });
+
   it.each(["chat", "plan", "analyze"] as const)(
     "promotes an artifact follow-up from %s mode to executable mode",
     (executionMode) => {
@@ -1147,7 +1224,7 @@ Attached files (relative to workspace):
     fs.rmSync(workspacePath, { recursive: true, force: true });
   });
 
-  it("routes a PowerPoint follow-up to the built-in presentation tool", () => {
+  it("keeps a PowerPoint follow-up and retry on the active presentation workflow", () => {
     const executor = createExecuteHarness({
       prompt: "先整理北京景点资料",
       lastOutput: "景点资料已经整理完成。",
@@ -1157,11 +1234,11 @@ Attached files (relative to workspace):
     const guidance = (executor as Any).buildFollowUpTurnGuidancePrompt("生成PPT");
     const retryInstruction = (executor as Any).buildFollowUpArtifactRetryInstruction(contract);
 
-    expect(guidance).toContain("built-in create_presentation tool directly");
-    expect(guidance).toContain("create_presentation is not a Skill");
+    expect(guidance).toContain("Presentation Studio");
+    expect(guidance).not.toContain("built-in create_presentation tool directly");
     expect(guidance).toContain("exactly one final .pptx file");
-    expect(retryInstruction).toContain("built-in create_presentation tool directly");
-    expect(retryInstruction).toContain("do not call the Skill tool");
+    expect(retryInstruction).toContain("successful QA report");
+    expect(retryInstruction).not.toContain("built-in create_presentation tool directly");
     expect(retryInstruction).toContain("Reuse the conversation's existing research");
     expect(getExplicitArtifactToolNames("", "生成PPT")).toEqual([
       "create_presentation",
@@ -3307,6 +3384,16 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
 });
 
 describe("buildCompletionGuidancePrompt", () => {
+  it("keeps PPT completion on the active source-first workflow instead of sending it to quick templates", () => {
+    const result = buildCompletionGuidancePrompt({
+      explicitOutputExtensions: [".pptx"],
+      likelyRequiresExecution: true,
+      hasReadOnlyConstraint: false,
+    });
+    expect(result).toContain("Presentation Studio by default");
+    expect(result).toContain("successful build/QA report");
+    expect(result).not.toContain("use create_presentation");
+  });
   it("includes read-only warning when hasReadOnlyConstraint is true", () => {
     const result = buildCompletionGuidancePrompt({
       hasReadOnlyConstraint: true,
@@ -3330,14 +3417,14 @@ describe("buildCompletionGuidancePrompt", () => {
     expect(result).toContain("create_spreadsheet");
   });
 
-  it("names the built-in PowerPoint tool for PPTX artifact tasks", () => {
+  it("preserves the presentation workflow even when execution intent was inferred from the requested file type", () => {
     const result = buildCompletionGuidancePrompt({
       hasReadOnlyConstraint: false,
       explicitOutputExtensions: [".pptx"],
       likelyRequiresExecution: false,
     });
     expect(result).toContain("create_presentation");
-    expect(result).toContain("exactly one final .pptx file");
+    expect(result).toContain("successful build/QA report");
     expect(result).not.toContain("localhost HTTP services, so probe");
   });
 

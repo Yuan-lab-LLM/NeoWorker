@@ -13,7 +13,7 @@ const hostFor = (item: PaperNewsItem) => {
   }
 };
 type Entry = {
-  status: "loading" | "done" | "busy" | "blocked" | "unavailable" | "failed";
+  status: "loading" | "done" | "busy" | "excluded" | "blocked" | "unavailable" | "failed";
   attempts: number;
 };
 
@@ -25,6 +25,7 @@ export function useNewsAutoSummaries(
     item: PaperNewsItem,
     result: Extract<NewsSummaryResult, { summary: string }>,
   ) => void,
+  onExcluded?: (item: PaperNewsItem) => void,
 ) {
   const [, render] = useState(0);
   const entries = useRef(new Map<string, Entry>());
@@ -33,8 +34,8 @@ export function useNewsAutoSummaries(
   const nextHostRequest = useRef(new Map<string, number>());
   const mounted = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const current = useRef({ items, onSummary });
-  current.current = { items, onSummary };
+  const current = useRef({ items, onSummary, onExcluded });
+  current.current = { items, onSummary, onExcluded };
   const pump = useRef<() => void>(() => {});
   pump.current = () => {
     clearTimeout(timer.current);
@@ -85,6 +86,7 @@ export function useNewsAutoSummaries(
         nextHostRequest.current.set(host, Date.now() + delay);
         if (mounted.current) {
           if ("summary" in result) current.current.onSummary(item, result);
+          else if (result.error === "excluded") current.current.onExcluded?.(item);
           render((n) => n + 1);
           pump.current();
         }

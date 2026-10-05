@@ -1,4 +1,4 @@
-import { compactGeneratedAttachmentContent, extractOfficeAttachmentKinds, stripGeneratedTaskContext } from "./task-intent-query";
+import { getTaskInstructionSource, type TaskIntentInput, compactGeneratedAttachmentContent, extractOfficeAttachmentKinds, stripGeneratedTaskContext } from "./task-intent-query";
 
 export interface DocumentTranslationContract {
   request: string;
@@ -55,9 +55,9 @@ function isPdfReportTool(toolName: string, input?: unknown): boolean {
   return false;
 }
 
-export function buildDocumentTaskMessage(task: { rawPrompt?: unknown; userPrompt?: unknown; prompt?: unknown; title?: unknown }): string {
-  const instruction = stripGeneratedTaskContext(task.rawPrompt || task.userPrompt || task.prompt || task.title);
-  for (const value of [task.rawPrompt, task.userPrompt, task.prompt]) {
+export function buildDocumentTaskMessage(task: TaskIntentInput): string {
+  const instruction = stripGeneratedTaskContext(getTaskInstructionSource(task) || task.title);
+  for (const value of task.parentTaskId && task.userPrompt ? [task.userPrompt] : [task.rawPrompt, task.userPrompt, task.prompt]) {
     const text = String(value || "");
     const section = /(?:^|\n)\s*Attached files(?: \(relative to workspace\))?:/.exec(text);
     if (section) return `${instruction}\n\n${compactGeneratedAttachmentContent(text.slice(section.index)).trim()}`;

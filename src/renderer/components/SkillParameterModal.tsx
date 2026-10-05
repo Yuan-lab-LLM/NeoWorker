@@ -258,7 +258,7 @@ export function expandSkillPrompt(
       .filter((line): line is string => Boolean(line));
     return buildLocalizedSkillComposerPrompt(skill, {
       parameterLines,
-      includeTaskPlaceholder: parameterLines.length === 0,
+      includeTaskPlaceholder: true,
     });
   }
 

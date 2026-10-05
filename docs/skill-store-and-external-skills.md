@@ -257,3 +257,11 @@ This gives NeoWorker an important ecosystem advantage:
 - bring skills from other ecosystems without waiting for a custom marketplace integration
 
 In practice, NeoWorker is not locked to a single skill source. It can act as a governed desktop runtime for skills that originate from multiple ecosystems.
+
+## Generated skills and reinstalling NeoWorker
+
+Skills created through `skill_create` or the skill editor are stored in the active profile's persistent `skills/` directory. On a default macOS installation this is `~/Library/Application Support/neoworker/skills/`. Replacing the application does not remove that library; deleting the profile or switching profiles is a separate operation. Explicit project-scoped skills can still be created in a workspace's `skills/` directory.
+
+Older versions could save a generated skill in the last task's temporary workspace. At desktop startup, NeoWorker recovers valid JSON skills from registered temporary workspaces before cleanup. Recovery preserves the prompt and parameters, never overwrites an existing persistent skill, and retains the original as a `.json.migrated` backup. Recovery requires the old file to still exist; it cannot reconstruct files already removed outside NeoWorker.
+
+In **Tools & Skills**, typing a search starts across all skills instead of silently retaining the previous scene/status filter. Use **Custom** to browse your saved skills, and the refresh button to reread the library from disk. User-defined names and descriptions are preserved when a recovered skill moves into the persistent library.

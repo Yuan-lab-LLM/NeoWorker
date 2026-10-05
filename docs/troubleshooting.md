@@ -1,5 +1,13 @@
 # Troubleshooting
 
+## Internal model service rejected as a private network host
+
+For EPAI and other OpenAI-compatible/custom model services, **Refresh model list** and **Test connection** support explicitly configured private-network IPs and internal hostnames, including `.local` names. Remote Ollama endpoints use the same policy. Localhost remains supported. Use the actual service address (for example, `http://172.16.0.127:32788/v1`), not the server's `0.0.0.0` bind address.
+
+Older builds rejected these endpoints with `OpenAI-compatible base URL cannot target private network hosts (except loopback)`. Install the corrected build; changing the API key does not resolve that validation error. Cloud metadata, link-local and unspecified destinations remain blocked. This exception is limited to local/custom model configuration and does not change browser or tool network policies.
+
+After validation succeeds, a connection timeout still means that the endpoint cannot be reached from this computer; check the LAN/VPN route, port and service availability. An HTTP authentication error requires checking the service's API key. Model discovery requests `<base URL>/models`.
+
 ## WSL/WSLg title bar or window controls look wrong
 
 When the Electron process is running on Linux under WSL, NeoWorker keeps the native window frame enabled and renders the in-app toolbar as a normal non-draggable row. Detection requires `process.platform === "linux"` plus either `WSL_DISTRO_NAME` or a kernel release containing `Microsoft`.

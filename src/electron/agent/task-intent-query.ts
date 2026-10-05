@@ -210,15 +210,26 @@ export function compactGeneratedAttachmentContent(value: unknown): string {
   return compacted.replace(/\n{3,}/g, "\n\n").trim();
 }
 
-export function buildCanonicalTaskIntentQuery(input: {
+export interface TaskIntentInput {
   title?: unknown;
   prompt?: unknown;
   rawPrompt?: unknown;
   userPrompt?: unknown;
-}): string {
+  parentTaskId?: unknown;
+}
+
+export function getTaskInstructionSource(input: TaskIntentInput): string {
+  // A team child's rawPrompt is the dispatch envelope, including other
+  // agents' findings and suggestions. Those are not new user instructions.
+  if (input.parentTaskId && String(input.userPrompt || "").trim()) {
+    return String(input.userPrompt).trim();
+  }
+  return String(input.rawPrompt || "").trim() || String(input.userPrompt || "").trim() || String(input.prompt || "");
+}
+
+export function buildCanonicalTaskIntentQuery(input: TaskIntentInput): string {
   const title = stripGeneratedTaskContext(input.title);
-  const instructionSource =
-    String(input.rawPrompt || "").trim() || String(input.userPrompt || "").trim() || input.prompt;
+  const instructionSource = getTaskInstructionSource(input);
   const prompt = stripGeneratedTaskContext(instructionSource);
   const instruction = prompt || title;
   if (!instruction) return "";
@@ -237,9 +248,9 @@ export function buildCanonicalTaskIntentQuery(input: {
   }
 
   const attachmentKinds = extractOfficeAttachmentKinds(
-    input.prompt,
-    input.rawPrompt,
-    input.userPrompt,
+    ...(input.parentTaskId && input.userPrompt
+      ? [input.userPrompt]
+      : [input.prompt, input.rawPrompt, input.userPrompt]),
   );
   if (attachmentKinds.length !== 1) return instruction;
 
@@ -251,12 +262,7 @@ export function buildCanonicalTaskIntentQuery(input: {
  * attachment text and planner-authored step descriptions are deliberately not
  * considered: they are task data, and can be written in a different language.
  */
-export function buildTaskOutputLanguageDirective(input: {
-  title?: unknown;
-  prompt?: unknown;
-  rawPrompt?: unknown;
-  userPrompt?: unknown;
-}): string {
+export function buildTaskOutputLanguageDirective(input: TaskIntentInput): string {
   const canonicalInstruction = buildCanonicalTaskIntentQuery(input);
   const hanCount = (canonicalInstruction.match(/[\u3400-\u9fff]/g) || []).length;
 
@@ -276,12 +282,7 @@ export function buildTaskOutputLanguageDirective(input: {
   );
 }
 
-export function taskRequiresSimplifiedChineseOutput(input: {
-  title?: unknown;
-  prompt?: unknown;
-  rawPrompt?: unknown;
-  userPrompt?: unknown;
-}): boolean {
+export function taskRequiresSimplifiedChineseOutput(input: TaskIntentInput): boolean {
   const canonicalInstruction = buildCanonicalTaskIntentQuery(input);
   return (canonicalInstruction.match(/[\u3400-\u9fff]/g) || []).length >= 2;
 }

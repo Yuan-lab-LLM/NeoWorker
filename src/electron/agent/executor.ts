@@ -1,4 +1,5 @@
 import { isArtifactRevisionRequest } from "./artifact-output-intent";
+import { getStudioApprovedHashes, isStudioCandidateApproved } from "./presentation-delivery-check";
 import {
   AgentConfig,
   Task,
@@ -1018,6 +1019,7 @@ export class TaskExecutor {
   private promptCacheProviderFamily: PromptCacheProviderFamily = "unsupported";
   private emittedVideoPreviewArtifactPaths = new Set<string>();
   private deliveredPresentationArtifactPaths = new Set<string>();
+  private presentationDeliveryRejectionReason: string | null = null;
   private promptCacheInvalidationReason: string | null = null;
   private currentPromptCacheContext: {
     surface: PromptCacheSurface;
@@ -2926,7 +2928,7 @@ export class TaskExecutor {
       : "";
     const presentationInstruction =
       contract.requiredArtifactExtensions.includes(".pptx")
-        ? " Apply the official OfficeCLI pptx, pitch-deck, morph-ppt, or morph-ppt-3d profile that matches the request, then use the built-in create_presentation tool directly to build and validate the native file; do not call the Skill tool as the file generator. Reuse the conversation's existing research and content instead of restarting research."
+        ? " Follow the active presentation workflow, using Presentation Studio by default. Build from its source project and deliver only the PPTX published by its successful QA report; do not switch to legacy create_presentation/generate_presentation quick templates or copy a rejected .build candidate. Keep an explicitly chosen PPT Master or Visual Presentation workflow. Reuse the conversation's existing research and content instead of restarting research."
         : "";
     const htmlInstruction = contract.requiredArtifactExtensions.includes(
       ".html",
@@ -5034,6 +5036,7 @@ export class TaskExecutor {
     const runtime = this.hermesRuntimeAdapter;
     this.hermesRuntimeAdapter = null;
     this.hermesRuntimeWorkspacePath = null;
+    this.hermesRuntimeRouteFingerprint = null;
     if (!runtime) return;
     this.emitEvent("log", {
       metric: "hermes_runtime_session_closed",
@@ -5082,10 +5085,12 @@ export class TaskExecutor {
 
   private getReusableHermesRuntimeAdapter(
     checkpoint?: HermesSessionCheckpoint,
+    routeFingerprint?: string,
   ): HermesRuntimeAdapter | null {
     const runtime = this.hermesRuntimeAdapter;
     if (!runtime) return null;
     if (this.hermesRuntimeWorkspacePath !== this.workspace.path) return null;
+    if (this.hermesRuntimeRouteFingerprint !== routeFingerprint) return null;
     const activeCheckpoint = runtime.getCheckpoint();
     const requestedSessionId = checkpoint?.sessionId;
     if (
@@ -5149,7 +5154,6 @@ export class TaskExecutor {
       !Array.isArray(record.data)
         ? (record.data as { retryable?: unknown })
         : undefined;
-    if (data?.retryable === false) return false;
     if (
       code === "CANCELLED" ||
       code === "RETRY_CONFIRMATION_REQUIRED" ||
@@ -5158,6 +5162,13 @@ export class TaskExecutor {
     ) {
       return false;
     }
+    // Older packaged hosts defaulted missing retryability to false. A provider
+    // rejecting a request due to capacity is still transient; the caller also
+    // checks tool progress before retrying so unknown effects are never replayed.
+    if (code === "HERMES_RUNTIME_ERROR" && this.isProviderCapacityError(error)) {
+      return true;
+    }
+    if (data?.retryable === false) return false;
     if (
       code === "REQUEST_TIMEOUT" ||
       code === "FIRST_BYTE_TIMEOUT" ||
@@ -5169,6 +5180,11 @@ export class TaskExecutor {
     return /(?:queue\s+is\s+full|temporar(?:y|ily)|overload|rate\s*limit|too\s+many\s+requests|connection\s+(?:reset|refused|closed)|fetch\s+failed|timed?\s*out|HTTP\s+(?:429|502|503|504)\b|ECONN(?:RESET|REFUSED|ABORTED))/i.test(
       `${code} ${message}`,
     );
+  }
+
+  private isProviderCapacityError(error: unknown): boolean {
+    const message = String((error as { message?: unknown })?.message || error || "");
+    return /HTTP\s+(?:429|502|503|504)\b|queue\s+is\s+full|server\s+(?:is\s+)?overloaded|too\s+many\s+requests/i.test(message);
   }
 
   private hasUnresolvedHermesToolProgress(
@@ -5221,7 +5237,9 @@ export class TaskExecutor {
           throw error;
         }
 
-        const delayMs = Math.min(2_000, 500 * 2 ** attempt);
+        const delayMs = this.isProviderCapacityError(error)
+          ? 2_000 * 2 ** attempt
+          : Math.min(2_000, 500 * 2 ** attempt);
         const reason = String(
           (error as { message?: unknown })?.message ||
             error ||
@@ -5737,6 +5755,18 @@ export class TaskExecutor {
         message,
         quotedAssistantMessage,
       );
+      if (
+        !this.isExplicitChatExecutionMode() &&
+        this.task.agentConfig?.requestedSkillParameters !== undefined &&
+        !message.trimStart().startsWith("/")
+      ) {
+        const selectedSkill = this.getAppliedSkillApplication(this.task.agentConfig.requestedSkillId || "");
+        if (selectedSkill) {
+          runtimeMessage +=
+            "\n\nCURRENT SKILL SELECTION (replaces earlier values for this skill):\n" +
+            this.buildHermesSkillContext(selectedSkill);
+        }
+      }
       if (followUpCompletionContract?.requiresArtifactEvidence) {
         runtimeMessage +=
           "\n\nFOLLOW-UP DELIVERABLE CONTRACT (HARD REQUIREMENT):\n" +
@@ -8938,6 +8968,7 @@ ${transcript}
   private acpxRuntimeRunner: AcpxRuntimeRunner | null = null;
   private hermesRuntimeAdapter: HermesRuntimeAdapter | null = null;
   private hermesRuntimeWorkspacePath: string | null = null;
+  private hermesRuntimeRouteFingerprint: string | null = null;
   private hermesRuntimeIdleTimer?: ReturnType<typeof setTimeout>;
   private hermesCheckpoint: HermesSessionCheckpoint | undefined;
   private static readonly HERMES_RUNTIME_IDLE_TTL_MS = 60_000;
@@ -10533,6 +10564,8 @@ ${transcript}
       task.agentConfig,
       {
         isVerificationTask,
+        allowProviderOverride: true,
+        allowModelOverride: true,
       },
     );
     this.applyResolvedProviderSelection(llmSelection);
@@ -10700,14 +10733,34 @@ ${transcript}
           : {}),
       };
     }
+    // Model selection is a turn boundary, including retries after a failed
+    // prompt. The subprocess captures this configuration when it launches.
+    if (this.provider) this.refreshProviderIfSettingsChanged();
+    const hermesSettings = LLMProviderFactory.loadSettings();
+    const hermesProviderBridge = resolveHermesProviderBridge(
+      hermesSettings,
+      this.provider?.type ?? hermesSettings.providerType,
+      this.modelId || String(hermesSettings.modelKey || ""),
+    );
+    const hermesHome = path.join(getUserDataDir(), "hermes-runtime");
+    const bridgeEnvironment = buildHermesProviderBridgeEnvironment(
+      hermesProviderBridge,
+      hermesHome,
+    );
+    // Include endpoint/auth changes as well as the model; never persist or log
+    // credentials. Keep the checkpoint so replacement preserves conversation.
+    const routeFingerprint = createHash("sha256")
+      .update(JSON.stringify(
+        Object.entries(bridgeEnvironment).sort(([a], [b]) => a.localeCompare(b)),
+      ))
+      .digest("hex");
     const reusableRuntime = this.getReusableHermesRuntimeAdapter(
       this.hermesCheckpoint,
+      routeFingerprint,
     );
     if (reusableRuntime) return reusableRuntime;
     if (this.hermesRuntimeAdapter) {
-      // A workspace or checkpoint mismatch must not leave the previous ACP
-      // process alive while a replacement is being started.
-      void this.closeHermesRuntime("workspace_or_checkpoint_changed");
+      void this.closeHermesRuntime("route_workspace_or_checkpoint_changed");
     }
     // New Hermes tasks use NeoWorker's Tool Host. Retain the ownership of a
     // saved legacy session; silently switching an existing native-tool
@@ -10715,22 +10768,11 @@ ${transcript}
     const hostOwned =
       !this.hermesCheckpoint ||
       this.hermesCheckpoint.toolOwnership === "neoworker";
-    const hermesSettings =
-      this.cachedLlmSettings ?? LLMProviderFactory.loadSettings();
-    const hermesProviderBridge = resolveHermesProviderBridge(
-      hermesSettings,
-      this.provider?.type ?? hermesSettings.providerType,
-      this.modelId || String(hermesSettings.modelKey || ""),
-    );
-    const hermesHome = path.join(getUserDataDir(), "hermes-runtime");
     let lastModelActivityAt = 0;
     const options: HermesRuntimeOptions = {
       cwd: this.workspace.path,
       firstByteTimeoutMs: 90_000,
-      env: buildHermesProviderBridgeEnvironment(
-        hermesProviderBridge,
-        hermesHome,
-      ),
+      env: bridgeEnvironment,
       checkpoint: this.hermesCheckpoint,
       getLogSequence: () => {
         // Checkpoints are persisted before and after every host tool call.
@@ -11030,6 +11072,7 @@ ${transcript}
         this.task.id,
       ),
     };
+    this.hermesRuntimeRouteFingerprint = routeFingerprint;
     return new HermesRuntimeAdapter(options);
   }
 
@@ -12829,6 +12872,7 @@ ${transcript}
   private isBudgetExhaustionError(error: unknown): boolean {
     if (error instanceof BudgetLimitExceededError) return true;
     if (error instanceof TurnLimitExceededError) return true;
+    if ((error as Any)?.code === "REQUEST_TIMEOUT") return true;
     const message = String((error as Any)?.message || error || "");
     return (
       /Global turn limit exceeded|Lifetime turn limit exceeded/i.test(
@@ -13209,6 +13253,7 @@ ${transcript}
     }
     if (/provider_quota|rate limit|too many requests|429/i.test(message))
       return "provider_quota";
+    if (this.isProviderCapacityError(error)) return "dependency_unavailable";
     if (/user action required|approval|user denied/i.test(message))
       return "user_blocker";
     if (/tool|web_search|web_fetch|run_command|tool call/i.test(message))
@@ -13793,8 +13838,8 @@ ${transcript}
 
     if (toolName === "analyze_image") {
       // Vision API calls send large base64 images to remote LLMs and wait for analysis.
-      // The default 30s is insufficient for high-res images on slower providers.
-      return normalizedSettingsTimeout ?? clampToStepTimeout(120 * 1000);
+      // A five-image batch uses two waves of at most 60s plus image processing.
+      return normalizedSettingsTimeout ?? clampToStepTimeout(150 * 1000);
     }
 
     if (toolName === "read_pdf_visual") {
@@ -18130,6 +18175,7 @@ ${transcript}
       prompt: this.getContractPrompt(),
       rawPrompt: this.task.rawPrompt,
       userPrompt: this.task.userPrompt,
+      parentTaskId: this.task.parentTaskId,
     });
   }
 
@@ -18140,6 +18186,7 @@ ${transcript}
       prompt: task.prompt,
       rawPrompt: task.rawPrompt,
       userPrompt: task.userPrompt,
+      parentTaskId: task.parentTaskId,
     });
   }
 
@@ -18149,6 +18196,7 @@ ${transcript}
       prompt: this.task.prompt,
       rawPrompt: this.task.rawPrompt,
       userPrompt: this.task.userPrompt,
+      parentTaskId: this.task.parentTaskId,
     });
   }
 
@@ -18158,6 +18206,7 @@ ${transcript}
       prompt: this.task.prompt,
       rawPrompt: this.task.rawPrompt,
       userPrompt: this.task.userPrompt,
+      parentTaskId: this.task.parentTaskId,
     });
   }
 
@@ -19095,6 +19144,7 @@ ${transcript}
     }
     this.stopProgressJournal();
     this.finalizePresentationArtifactDelivery();
+    const presentationRejected = this.presentationDeliveryRejectionReason;
     this.saveConversationSnapshot();
     this.taskCompleted = true;
     const waivableFailedStepIds = this.getWaivableFailedStepIdsAtCompletion();
@@ -19105,8 +19155,9 @@ ${transcript}
     const waivedVerificationStepIds = this.getVerificationStepIds(
       waivableFailedStepIds,
     );
-    const rawSummary =
-      typeof resultSummary === "string" && resultSummary.trim()
+    const rawSummary = presentationRejected
+      ? "本次任务未能交付通过校验的演示文稿。已有草稿、历史附件和其他任务的文件不能作为本次生成结果。"
+      : typeof resultSummary === "string" && resultSummary.trim()
         ? resultSummary.trim()
         : this.buildResultSummary() || "";
     const summary = this.enforceTaskOutputLanguageForDisplay(rawSummary, {
@@ -19170,6 +19221,10 @@ ${transcript}
         );
       computedTerminalStatus = statusWithVerification.terminalStatus;
       computedFailureClass = statusWithVerification.failureClass;
+    }
+    if (presentationRejected) {
+      computedTerminalStatus = "partial_success";
+      computedFailureClass = "contract_error";
     }
     this.task.terminalStatus = computedTerminalStatus;
     this.task.failureClass = computedFailureClass;
@@ -21229,7 +21284,7 @@ ${transcript}
     ).map((extension) => extension.toLowerCase());
     const presentationGuidance = requestedExtensions.includes(".pptx")
       ? [
-          "- This follow-up requests PowerPoint. Select and apply the matching official OfficeCLI pptx, pitch-deck, morph-ppt, or morph-ppt-3d generation profile, then use the built-in create_presentation tool directly. create_presentation is not a Skill; do not route the file-generation call through the Skill tool.",
+          "- This follow-up requests PowerPoint. Continue the active presentation workflow; otherwise load Presentation Studio, the default source-first workflow. Do not bypass it with the legacy create_presentation/generate_presentation quick-template tools. Respect an explicitly selected PPT Master workflow.",
           "- Reuse the prior conversation's findings, plan the narrative and visual system, then build varied editable slide layouts instead of a repeated generic template.",
           "- Produce exactly one final .pptx file, verify the tool succeeded, then return it. Do not create a second fallback deck after one valid .pptx exists.",
         ]
@@ -22745,6 +22800,14 @@ You are continuing a previous conversation. The context from the previous conver
     if (this._runtime) {
       this._runtime.setPermissionMode(this.getDefaultPermissionMode());
     }
+  }
+
+  updateTaskAccessConfig(agentConfig: AgentConfig | undefined): void {
+    this.updateTaskAgentConfig({
+      ...this.task.agentConfig,
+      permissionMode: agentConfig?.permissionMode,
+      shellAccess: agentConfig?.shellAccess,
+    });
   }
 
   /**
@@ -26114,6 +26177,7 @@ You are continuing a previous conversation. The context from the previous conver
 
   private recordToolResult(toolName: string, result: Any, input?: Any): void {
     this.recordWebEvidence(toolName, result, input);
+    this.publishPresentationBuildCheckpoint(toolName, result, input);
 
     if (toolName === "tool_search") {
       const matches = Array.isArray(result?.matches) ? result.matches : [];
@@ -26145,6 +26209,25 @@ You are continuing a previous conversation. The context from the previous conver
         0,
         this.toolResultMemory.length - this.toolResultMemoryLimit,
       );
+    }
+  }
+
+  private publishPresentationBuildCheckpoint(toolName: string, result: Any, input?: Any): void {
+    const shellBuild = toolName === "run_command" ||
+      (toolName === "execute_code" && input?.language === "shell");
+    const exitCode = result?.exitCode ?? result?.exit_code;
+    if (!shellBuild || result?.success === false || result?.error || result?.timed_out || exitCode !== 0 ||
+        !/\bbuild_and_qa\.mjs\b/.test(String(input?.command || input?.code || "")) ||
+        this.getActivePresentationWorkflow() !== "presentation-studio") return;
+    const previousCount = this.deliveredPresentationArtifactPaths.size;
+    const published = this.finalizePresentationArtifactDelivery();
+    if (published && this.deliveredPresentationArtifactPaths.size > previousCount) {
+      this.emitEvent("progress_update", {
+        phase: "presentation_review", state: "active", path: published,
+        message: this.taskRequiresSimplifiedChineseOutput()
+          ? "PPT 阶段稿已生成，可以先查看；正在进行视觉复核。"
+          : "A PPT draft is available to view. Visual review is still in progress.",
+      });
     }
   }
 
@@ -31204,12 +31287,48 @@ You are continuing a previous conversation. The context from the previous conver
       return false;
     }
 
+    const parameters = this.task.agentConfig?.requestedSkillParameters;
+    if (parameters !== undefined) {
+      // UI form values are authoritative invocation arguments, not prose for the model to infer.
+      const args = JSON.stringify(parameters);
+      if (this.getAppliedSkillApplication(skillId)?.args === args) return true;
+      const previous = this.appliedSkills || [];
+      this.appliedSkills = previous.filter((application) => application.skillId !== skillId);
+      try {
+        // Choosing a skill in the form is a manual invocation, like typing its slash command.
+        // Keep the registry's user-invocable, eligibility and permission checks.
+        await this.executeSkillInvocation(
+          skillId, args, `the user-selected task skill '${skillId}'`, "slash",
+        );
+      } catch (error) {
+        this.appliedSkills = previous;
+        throw error;
+      }
+      return true;
+    }
+
     return this.maybeAutoApplyExplicitSkillInvocation(
       `Use the ${skillId} skill.`,
       "task",
       `the structured task capability '${skillId}'`,
       { continueWhenUnavailable: skillId !== "ppt-master" },
     );
+  }
+
+  /** Resolve host-owned skill routing before either execution engine starts. */
+  private async prepareInitialTaskSkills(): Promise<void> {
+    if (this.isExplicitChatExecutionMode()) return;
+    const handled = await this.maybeHandleSkillSlashCommandOrInlineChain();
+    if (handled) return;
+    await this.maybeHandleNaturalLlmWikiPrompt();
+    const configured = await this.maybeAutoApplyConfiguredTaskSkill();
+    if (configured) return;
+    await this.maybeAutoApplyExplicitSkillInvocation(
+      this.getSkillRoutingQuery(),
+      "task",
+      "the explicitly requested task skill",
+    );
+    await this.maybeHandleHighConfidenceSkillRouting();
   }
 
   private getAutoRoutableSkill(
@@ -31392,13 +31511,9 @@ You are continuing a previous conversation. The context from the previous conver
         normalized,
       ) || /(?:编辑|修改|优化|美化|修复|检查|查看|读取|评审|翻译|汉化|本地化|译成|译为)/.test(normalized);
 
-    const createOrTransformCue =
-      /\b(?:create|generate|make|build|produce|draft|turn|convert|transform)\b/i.test(
-        normalized,
-      ) ||
-      /(?:生成|制作|创建|新建|做一份|做一个|整理成|转换成|转成)/.test(
-        normalized,
-      );
+    // Use the output-intent parser shared by artifact delivery. Maintaining a
+    // second verb list here missed ordinary requests such as “输出一个PPT文档”.
+    const createOrTransformCue = promptRequestsPresentationArtifactOutputUtil("", normalized);
 
     // Presentation Studio is the default source-first PowerPoint workflow.
     // Explicitly visual creation is routed earlier to Visual Presentation, and
@@ -31426,7 +31541,7 @@ You are continuing a previous conversation. The context from the previous conver
       /\b(?:create|generate|make|build|produce|regenerate|rebuild|redo)\b/i.test(
         normalized,
       ) ||
-      /(?:生成|制作|创建|新建|做一份|做一个|重新生成|重新制作|重做一份)/.test(
+      /(?:生成|制作|创建|新建|输出|导出|给我|做一份|做一个|重新生成|重新制作|重做一份)/.test(
         normalized,
       );
     const existingDeckEditIntent =
@@ -31718,6 +31833,7 @@ You are continuing a previous conversation. The context from the previous conver
    * repository so the UI always exposes an actual preview/download action.
    */
   private finalizePresentationArtifactDelivery(): string | null {
+    this.presentationDeliveryRejectionReason = null;
     const workflow = this.getActivePresentationWorkflow();
     if (!workflow) return null;
 
@@ -31767,6 +31883,21 @@ You are continuing a previous conversation. The context from the previous conver
         !resolved.startsWith(`${path.resolve(this.workspace.path)}${path.sep}`)
       )
         return;
+      // Uploaded inputs and other tasks' outputs are never this task's
+      // deliverables, even if a generic file event happens to mention them.
+      const workspaceRelative = path.relative(this.workspace.path, resolved).replace(/\\/g, "/");
+      if (workspaceRelative.startsWith(".neoworker/uploads/")) return;
+      if (workspaceRelative.startsWith("artifacts/skills/") &&
+          !workspaceRelative.startsWith(`artifacts/skills/${this.task.id}/`)) return;
+      try {
+        const realWorkspace = fs.realpathSync(this.workspace.path);
+        const realCandidate = fs.realpathSync(resolved);
+        const realRelative = path.relative(realWorkspace, realCandidate).replace(/\\/g, "/");
+        if (realRelative.startsWith("../") || path.isAbsolute(realRelative) ||
+            realRelative.startsWith(".neoworker/uploads/") ||
+            (realRelative.startsWith("artifacts/skills/") &&
+             !realRelative.startsWith(`artifacts/skills/${this.task.id}/`))) return;
+      } catch { return; }
       if (
         workflow === "ppt-master" &&
         resolved !== workflowOutputDirectory &&
@@ -31811,7 +31942,8 @@ You are continuing a previous conversation. The context from the previous conver
       visit(root, 0);
     };
     if (workflow !== "ppt-master") {
-      collectPptxFiles(path.join(this.workspace.path, ".neoworker"), 3);
+      // A workspace may be shared by unrelated conversations. Hidden uploads
+      // and temporary files are inputs unless tracked as writes by this task.
       collectPptxFiles(
         path.join(this.workspace.path, "artifacts", "skills", this.task.id),
         7,
@@ -31823,7 +31955,14 @@ You are continuing a previous conversation. The context from the previous conver
       collectPptxFiles(workflowOutputDirectory, 1);
     }
 
+    const isNativeTranslation = Boolean(this.toolRegistry?.getDocumentTranslationGuidance?.());
+    const studioApprovedHashes = workflow === "presentation-studio" && !isNativeTranslation
+      ? getStudioApprovedHashes(resolvedArtifactRoot)
+      : null;
     const validCandidates = Array.from(candidates)
+      .filter(candidate => workflow !== "presentation-studio" || (isNativeTranslation
+        ? this.toolRegistry?.isVerifiedTranslationOutput?.(candidate) === true
+        : isStudioCandidateApproved(candidate, studioApprovedHashes)))
       .map((candidate) => {
         try {
           const stats = fs.statSync(candidate);
@@ -31850,7 +31989,13 @@ You are continuing a previous conversation. The context from the previous conver
       .sort((left, right) => right.mtimeMs - left.mtimeMs);
 
     const source = validCandidates[0];
-    if (!source) return null;
+    if (!source) {
+      if (workflow === "presentation-studio") {
+        this.presentationDeliveryRejectionReason = "No task-owned PPTX has successful build QA or translation evidence.";
+        this.emitEvent("log", { message: "Presentation Studio delivery rejected: no PPTX matches a successful build QA report. Fix the reported errors and rebuild; never copy a private .build candidate into output.", workflow });
+      }
+      return null;
+    }
 
     if (workflow === "ppt-master") {
       const validationDirectory = path.resolve(
@@ -31913,7 +32058,7 @@ You are continuing a previous conversation. The context from the previous conver
     const sourceIsWorkflowOutput =
       path.dirname(source.path) === canonicalDirectory &&
       /^presentation(?:-v\d+)?\.pptx$/i.test(path.basename(source.path));
-    const targetPath = sourceIsWorkflowOutput
+    const targetPath = isNativeTranslation || sourceIsWorkflowOutput
       ? source.path
       : resolveVersionedOutputPath(canonicalTargetPath);
 
@@ -32924,6 +33069,12 @@ You are continuing a previous conversation. The context from the previous conver
 
   private async finalizeWithTimeoutRecovery(error: Any): Promise<boolean> {
     const completionContract = this.buildCompletionContract();
+    // External runtimes write through shell commands, which are not necessarily
+    // observed by the file tracker. Discover the byte-bound, QA-approved output
+    // before concluding that the task has produced no artifact.
+    const presentationPath = completionContract.requiredArtifactExtensions.includes(".pptx")
+      ? this.finalizePresentationArtifactDelivery()
+      : null;
     if (
       completionContract.requiresArtifactEvidence &&
       !this.hasArtifactEvidence(completionContract)
@@ -32937,7 +33088,14 @@ You are continuing a previous conversation. The context from the previous conver
       return false;
     }
 
-    const recoveryAnswer = await this.buildTimeoutRecoveryAnswer(error);
+    // A timed-out model must not be asked to invent a completion claim or spend
+    // another request summarizing a known file. Later edits may not be built;
+    // expose only the last published version and keep its status partial.
+    const recoveryAnswer = presentationPath
+      ? this.taskRequiresSimplifiedChineseOutput()
+        ? `本轮执行超时，已保留最近一次成功构建的 PPT。\n\n[打开已生成的 PPT](<${presentationPath}>)\n\n这是可查看的阶段版本，最后的修改或视觉复核可能尚未完成，不能视为最终验收通过。`
+        : `This turn timed out. The last successfully built PPT has been preserved.\n\n[Open the generated PPT](<${presentationPath}>)\n\nThis is an intermediate version. Final edits or visual review may be incomplete; it is not a fully verified final delivery.`
+      : await this.buildTimeoutRecoveryAnswer(error);
     const finalText = String(recoveryAnswer || "").trim();
     if (!finalText) {
       return false;
@@ -33266,6 +33424,9 @@ You are continuing a previous conversation. The context from the previous conver
         try {
           if (this.getAcpxExternalRuntimeConfig()?.agent === "hermes") {
             await this.ensureRuntimeCatalogsReady();
+            if (this.paused || this.cancelled) return;
+            await this.prepareInitialTaskSkills();
+            if (this.waitingForUserInput || this.paused || this.cancelled) return;
             await this.executeWithHermesRuntime(
               initialPrompt || this.getContractPrompt() || "",
             );
@@ -33344,23 +33505,7 @@ You are continuing a previous conversation. The context from the previous conver
         return;
       }
 
-      if (!this.isExplicitChatExecutionMode()) {
-        const handledSkillSlashOrInline =
-          await this.maybeHandleSkillSlashCommandOrInlineChain();
-        if (!handledSkillSlashOrInline) {
-          await this.maybeHandleNaturalLlmWikiPrompt();
-          const configuredSkillApplied =
-            await this.maybeAutoApplyConfiguredTaskSkill();
-          if (!configuredSkillApplied) {
-            await this.maybeAutoApplyExplicitSkillInvocation(
-              this.getSkillRoutingQuery(),
-              "task",
-              "the explicitly requested task skill",
-            );
-            await this.maybeHandleHighConfidenceSkillRouting();
-          }
-        }
-      }
+      await this.prepareInitialTaskSkills();
       if (this.waitingForUserInput || this.paused) {
         return;
       }
@@ -44484,6 +44629,14 @@ Return ONLY a JSON object:
     const raw = String(error?.message || "Unknown error");
     const lower = raw.toLowerCase();
 
+    if (error?.code === "REQUEST_TIMEOUT") {
+      return "本轮执行达到时间上限，已停止；上下文已保留。未找到可交付的最终文件，可以从当前进度继续。";
+    }
+
+    if (this.isProviderCapacityError(error)) {
+      return "模型服务当前繁忙或暂时不可用，本轮未完成，当前上下文已保留。请稍后重试或切换模型。";
+    }
+
     // Hermes/ACP implementation details are diagnostic data. Keep them on
     // technicalError/log events, but never copy the backend name into the
     // assistant bubble shown for a follow-up failure.
@@ -44553,6 +44706,16 @@ Return ONLY a JSON object:
     failureClass: NonNullable<Task["failureClass"]>,
   ): string {
     const raw = String(error?.message || error || "Unknown error");
+    if (error?.code === "REQUEST_TIMEOUT") {
+      return this.taskRequiresSimplifiedChineseOutput()
+        ? "本轮执行达到时间上限，已停止；上下文已保留。未找到可交付的最终文件，可以从当前进度继续。"
+        : "This turn reached its execution time limit. Context has been preserved, but no deliverable final file was found. You can continue from the current progress.";
+    }
+    if (this.isProviderCapacityError(error)) {
+      return this.taskRequiresSimplifiedChineseOutput()
+        ? "模型服务当前繁忙或暂时不可用，本次任务未完成。请稍后重试或切换模型。"
+        : "The model service is busy or temporarily unavailable. This task did not complete. Please try again later or switch models.";
+    }
     if (this.isHermesRuntimeErrorMessage(error)) {
       return this.getHermesRuntimeFailureDisplayMessage();
     }
@@ -45252,8 +45415,8 @@ Return ONLY a JSON object:
 
   /**
    * Refreshes the active provider/model route from current settings.
-   * Runtime profiles may affect logging and planning metadata, but they do not
-   * select a different model from the globally configured provider/model.
+   * Explicit session/turn selections take precedence over global defaults.
+   * Runtime profiles do not silently replace the user's chosen model.
    */
   private refreshProviderIfSettingsChanged(forceProfile?: LlmProfile): void {
     const currentSettings = LLMProviderFactory.loadSettings();
@@ -45265,7 +45428,7 @@ Return ONLY a JSON object:
       currentSettingsProvider.length > 0 &&
       currentSettingsProvider !== this.provider.type;
 
-    const selectionConfig = providerChangedInSettings
+    const selectionConfig = providerChangedInSettings && !this.task.agentConfig?.providerType
       ? {
           ...this.task.agentConfig,
           // A task-scoped model choice should not pin the task to the previous provider.
@@ -45279,6 +45442,8 @@ Return ONLY a JSON object:
       {
         forceProfile: desiredProfile,
         isVerificationTask: this.isVerificationTaskRoute(),
+        allowProviderOverride: true,
+        allowModelOverride: true,
       },
     );
 
@@ -45313,6 +45478,7 @@ Return ONLY a JSON object:
           manualOverride: this.hasExplicitTaskRouteOverride(),
         });
       } catch (err: Any) {
+        if (this.hasExplicitTaskRouteOverride()) throw err;
         logger.warn(
           `${this.logTag} Failed to switch provider mid-session to ${newSelection.providerType}: ${err?.message}. Keeping current provider.`,
         );
@@ -45395,6 +45561,16 @@ Return ONLY a JSON object:
     quotedAssistantMessage?: QuotedAssistantMessage,
     options?: Pick<TaskFollowUpInput, "agentConfigOverride">,
   ): Promise<void> {
+    const turnOptions = options?.agentConfigOverride?.modelKey
+      ? {
+          ...options,
+          agentConfigOverride: {
+            // A prior forced profile must not override a new manual model.
+            llmProfileForced: false,
+            ...options.agentConfigOverride,
+          },
+        }
+      : options;
     await this.getLifecycleMutex().runExclusive(async () => {
       const persistedTask = this.daemon.getTask(this.task.id);
       const persistedAgentConfig =
@@ -45409,12 +45585,23 @@ Return ONLY a JSON object:
       this.activeConversationTurnId = `turn:${this.task.id}:follow-up:${randomUUID()}`;
       this.activeFollowUpCompletionContract = null;
       try {
+        // Apply a queued turn's configuration only after acquiring its mutex.
+        this.updateTaskAgentConfig({
+          ...persistedAgentConfig,
+          ...turnOptions?.agentConfigOverride,
+        });
+        if (turnOptions?.agentConfigOverride?.providerType || turnOptions?.agentConfigOverride?.modelKey) {
+          // A manual choice must not inherit the previous route's failure or
+          // failover cooldown before the new turn has had a chance to run.
+          this.lastFailedProviderRoute = null;
+          this.providerFailoverPreserveUntil = 0;
+        }
         this.resetToolRetryStateForUserFollowUp();
         await this.sendMessageUnlocked(
           message,
           images,
           quotedAssistantMessage,
-          options,
+          turnOptions,
         );
       } catch (error) {
         // Attachment/provider/prompt setup runs before the unified loop's
@@ -45452,6 +45639,18 @@ Return ONLY a JSON object:
       const outputEvidenceStartedAt =
         this.prepareExternalRuntimeFollowUpRun(message);
       try {
+        if (options?.agentConfigOverride) {
+          this.updateTaskAgentConfig({ ...this.task.agentConfig, ...options.agentConfigOverride });
+        }
+        if (
+          !this.isExplicitChatExecutionMode() &&
+          this.task.agentConfig?.requestedSkillParameters !== undefined &&
+          !message.trimStart().startsWith("/")
+        ) {
+          await this.ensureRuntimeCatalogsReady();
+          await this.maybeAutoApplyConfiguredTaskSkill();
+          if (this.waitingForUserInput) return;
+        }
         await this.sendMessageWithAcpxRuntime(
           message,
           images,
@@ -45744,6 +45943,19 @@ Return ONLY a JSON object:
         ...this.buildIntegrationMentionEventPayload(),
         ...(quotedAssistantMessage ? { quotedAssistantMessage } : {}),
       });
+    }
+
+    // A terminal-task restart above may reset runtime state. Apply only after that reset.
+    if (opts?.agentConfigOverride) {
+      this.updateTaskAgentConfig({ ...this.task.agentConfig, ...opts.agentConfigOverride });
+    }
+    if (
+      !this.isExplicitChatExecutionMode() &&
+      this.task.agentConfig?.requestedSkillParameters !== undefined &&
+      !message.trimStart().startsWith("/")
+    ) {
+      await this.maybeAutoApplyConfiguredTaskSkill();
+      if (this.waitingForUserInput) return;
     }
 
     let followUpCompletionContract =

@@ -1,4 +1,5 @@
 import { READING_CHANNELS, type ReadingRequest, type ReadingAnswer, type ReadingSelectionEvent, type ReadingSelectionRequest, type ReadingSelection } from "../shared/browser-reading";
+import { PAGE_TRANSLATION_CHANNEL, type PageTranslationRequest, type PageTranslationStatus } from "../shared/browser-page-translation";
 import type { NewsSummaryResult } from "../shared/news-summary";
 import type { WorkspaceContextDetails } from "../shared/types";
 import type { NewsTranslationResult } from "../shared/news-translation";
@@ -889,6 +890,9 @@ interface CronRunHistoryEntry {
   status: CronJobStatus;
   error?: string;
   taskId?: string;
+  taskStillRunning?: boolean;
+  deliveryStatus?: "success" | "failed" | "skipped";
+  deliveryError?: string;
   deliveryMode?: CronDeliveryMode;
   deliveryAttempts?: number;
   deliverableStatus?: CronDeliverableStatus;
@@ -911,6 +915,7 @@ interface CronJobState {
 interface CronDeliveryConfig {
   enabled: boolean;
   channelType?:
+    | "weixin"
     | "telegram"
     | "discord"
     | "slack"
@@ -944,6 +949,7 @@ interface CronJob {
   updatedAtMs: number;
   schedule: CronSchedule;
   workspaceId: string;
+  workspaceMode?: "automatic" | "selected";
   taskPrompt: string;
   taskTitle?: string;
   timeoutMs?: number;
@@ -962,6 +968,7 @@ interface CronJobCreate {
   deleteAfterRun?: boolean;
   schedule: CronSchedule;
   workspaceId: string;
+  workspaceMode?: "automatic" | "selected";
   taskPrompt: string;
   taskTitle?: string;
   timeoutMs?: number;
@@ -979,6 +986,7 @@ interface CronJobPatch {
   deleteAfterRun?: boolean;
   schedule?: CronSchedule;
   workspaceId?: string;
+  workspaceMode?: "automatic" | "selected";
   taskPrompt?: string;
   taskTitle?: string;
   timeoutMs?: number;
@@ -2274,6 +2282,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   askBrowserReading: (data: ReadingRequest): Promise<ReadingAnswer> => ipcRenderer.invoke(READING_CHANNELS.ask, data),
   cancelBrowserReading: (id: string): Promise<void> => ipcRenderer.invoke(READING_CHANNELS.cancel, id),
+  browserPageTranslation: (input: PageTranslationRequest): Promise<PageTranslationStatus> => ipcRenderer.invoke(PAGE_TRANSLATION_CHANNEL, input),
   registerBrowserWorkbenchSession: (
     data: BrowserWorkbenchSessionRegistration,
   ) =>
@@ -3015,6 +3024,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       executionMode?: ExecutionMode;
       taskDomain?: TaskDomain;
       requestedSkillId?: string;
+      requestedSkillParameters?: Record<string, string | number | boolean>;
       permissionMode?: PermissionMode;
       shellAccess?: boolean;
       agentConfigOverride?: AgentConfig;
@@ -3036,6 +3046,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ...(options?.taskDomain ? { taskDomain: options.taskDomain } : {}),
       ...(options?.requestedSkillId
         ? { requestedSkillId: options.requestedSkillId }
+        : {}),
+      ...(options?.requestedSkillId && options.requestedSkillParameters !== undefined
+        ? { requestedSkillParameters: options.requestedSkillParameters }
         : {}),
       ...(options?.permissionMode
         ? { permissionMode: options.permissionMode }
@@ -6156,6 +6169,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_REFRESH, source),
   savePaperNewsConfig: (config: PaperNewsConfig): Promise<PaperNewsSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_CONFIG, config),
+  setNewsFollowedCategories: (categories: import("../shared/news-preferences").NewsCategoryId[]): Promise<PaperNewsSnapshot> =>
+    ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_FOLLOW, categories),
   setPaperNewsSaved: (id: string, saved: boolean): Promise<PaperNewsSnapshot> =>
     ipcRenderer.invoke(IPC_CHANNELS.PAPER_NEWS_SAVE, id, saved),
 
@@ -6431,6 +6446,7 @@ export interface ElectronAPI {
   getPaperNews: () => Promise<PaperNewsSnapshot>;
   refreshPaperNews: (source?: PaperNewsSource | PaperNewsSource[]) => Promise<PaperNewsSnapshot>;
   savePaperNewsConfig: (config: PaperNewsConfig) => Promise<PaperNewsSnapshot>;
+  setNewsFollowedCategories: (categories: import("../shared/news-preferences").NewsCategoryId[]) => Promise<PaperNewsSnapshot>;
   setPaperNewsSaved: (id: string, saved: boolean) => Promise<PaperNewsSnapshot>;
   selectFolder: (defaultPath?: string) => Promise<string | null>;
   selectFiles: (
@@ -6485,6 +6501,7 @@ export interface ElectronAPI {
   onBrowserReadingSelection: (callback: (data: ReadingSelectionEvent) => void) => () => void;
   askBrowserReading: (data: ReadingRequest) => Promise<ReadingAnswer>;
   cancelBrowserReading: (id: string) => Promise<void>;
+  browserPageTranslation: (input: PageTranslationRequest) => Promise<PageTranslationStatus>;
   registerBrowserWorkbenchSession: (
     data: BrowserWorkbenchSessionRegistration,
   ) => Promise<{ success: boolean }>;
@@ -6952,6 +6969,7 @@ export interface ElectronAPI {
       executionMode?: ExecutionMode;
       taskDomain?: TaskDomain;
       requestedSkillId?: string;
+      requestedSkillParameters?: Record<string, string | number | boolean>;
       permissionMode?: PermissionMode;
       shellAccess?: boolean;
       agentConfigOverride?: AgentConfig;

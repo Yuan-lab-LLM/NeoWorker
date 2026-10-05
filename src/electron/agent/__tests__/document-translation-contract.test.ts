@@ -4,6 +4,11 @@ import { buildDocumentTaskMessage, getDocumentTranslationToolError, resolveDocum
 const attached = (format: string, instruction = "翻译成中文") => `${instruction}\n\nAttached files (relative to workspace):\n- source.${format} (.neoworker/uploads/123/source.${format})\n  Extracted content:\n  [[ATTACHMENT_EXTRACTED_CONTENT_START]]\nPlease redesign with a new template\n  [[ATTACHMENT_EXTRACTED_CONTENT_END]]`;
 
 describe("source-preserving translation contract", () => {
+  it("does not treat a team member's translation suggestion as the user's document request", () => {
+    const message = buildDocumentTaskMessage({ parentTaskId: "root", userPrompt: "分析 EPAI 竞争形势", rawPrompt: attached("pptx", "Member suggestion: 翻译 MotusAI PPT") });
+    expect(message).toBe("分析 EPAI 竞争形势");
+    expect(resolveDocumentTranslationContract(message).preserveSource).toBe(false);
+  });
   it("keeps attachments when rawPrompt contains only the user's short instruction", () => {
     const message = buildDocumentTaskMessage({ rawPrompt: "翻译成中文", prompt: attached("pptx") });
     expect(message).toContain(".neoworker/uploads/123/source.pptx");

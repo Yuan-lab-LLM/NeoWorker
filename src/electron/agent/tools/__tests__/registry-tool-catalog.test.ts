@@ -311,6 +311,14 @@ describe("ToolRegistry tool catalog versioning", () => {
     expect((registry as Any).getApprovalTypeForTool("web_search")).toBeNull();
     expect((registry as Any).getApprovalTypeForTool("web_fetch")).toBe("network_access");
     expect((registry as Any).getApprovalTypeForTool("http_request", { method: "GET" })).toBe("network_access");
+    expect(registry.getApprovalType("http_request", {
+      url: "https://hq.sinajs.cn/list=sz000977",
+      method: "GET",
+      headers: { Referer: "https://finance.sina.com.cn/" },
+    })).toBe("network_access");
+    expect(registry.getApprovalType("http_request", {
+      method: "GET", headers: { Authorization: "Bearer secret" },
+    })).toBe("data_export");
     expect((registry as Any).getApprovalTypeForTool("http_request", { method: "POST", body: "x" })).toBe("data_export");
   });
 
@@ -329,6 +337,9 @@ describe("ToolRegistry tool catalog versioning", () => {
 
   it("does not ask again before analyzing a file uploaded for the current task", () => {
     const registry = new ToolRegistry(createWorkspace(), createDaemon(), "task-uploaded-visual");
+    expect(registry.getApprovalType("analyze_image", { paths: [".neoworker/uploads/1/a.png", ".neoworker/uploads/1/b.png"] })).toBeNull();
+    expect(registry.getApprovalType("analyze_image", { paths: [".neoworker/uploads/1/a.png", "private/b.png"] })).toBe("data_export");
+    expect(registry.getApprovalType("analyze_image", { paths: [".neoworker/uploads/1/../../private.png"] })).toBe("data_export");
 
     expect(
       (registry as Any).getApprovalTypeForTool("analyze_image", {

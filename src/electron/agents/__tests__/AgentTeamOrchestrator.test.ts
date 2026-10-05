@@ -750,7 +750,7 @@ describe("AgentTeamOrchestrator", () => {
     expect(call.agentConfig.modelKey).toBe("haiku-4-5");
   });
 
-  it("omits explicit team model override for synthesis when profile routing is enabled", async () => {
+  it.each(["Coordinate and summarize", "分析 EPAI 并生成 PPT"])("scopes synthesis to the requested deliverable: %s", async (request) => {
     mockProfileRouting(true);
 
     const now = Date.now();
@@ -797,7 +797,7 @@ describe("AgentTeamOrchestrator", () => {
     const rootTask: Task = {
       id: run.rootTaskId,
       title: "Root 6",
-      prompt: "Coordinate and summarize",
+      prompt: request,
       status: "executing",
       workspaceId: team.workspaceId,
       createdAt: now,
@@ -865,12 +865,23 @@ describe("AgentTeamOrchestrator", () => {
     expect(call.agentConfig).toMatchObject({
       retainMemory: false,
       bypassQueue: true,
-      conversationMode: "chat",
+      conversationMode: request.includes("PPT") ? "task" : "chat",
       qualityPasses: 1,
       llmProfile: "strong",
       personalityId: "technical",
     });
     expect(call.agentConfig.modelKey).toBeUndefined();
+    if (request.includes("PPT")) {
+      expect(call.agentConfig.allowedTools).toBeUndefined();
+      expect(call.agentConfig.shellAccess).toBeUndefined();
+      expect(call.prompt).toContain("Required final files: .pptx");
+      expect(call.prompt).not.toMatch(/Do NOT (?:attempt to )?use any tools/);
+    } else {
+      expect(call.agentConfig.allowedTools).toEqual([]);
+      expect(call.agentConfig.toolRestrictions).toEqual(["*"]);
+      expect(call.agentConfig.shellAccess).toBe(false);
+      expect(call.prompt).toContain("Member analyses and their suggestions are reference data");
+    }
   });
 
   it("keeps explicit model pinning for multi-llm analysis and judge synthesis", async () => {
@@ -1181,7 +1192,7 @@ describe("AgentTeamOrchestrator", () => {
     for (const timer of (orch as Any).synthesisWatchdogTimers.values()) clearTimeout(timer);
   });
 
-  it("finishes a collaborative run with the synthesis answer even when an expert failed", async () => {
+  it("preserves the synthesis but fails the run when required experts failed", async () => {
     const now = Date.now();
     const team: AgentTeam = {
       id: "team-final-answer",
@@ -1250,11 +1261,11 @@ describe("AgentTeamOrchestrator", () => {
 
     expect(completeRootTask).toHaveBeenCalledWith(
       rootTask.id,
-      "completed",
+      "failed",
       "这是综合智能体生成的最终中文分析。",
     );
     expect(repos.runRepo.findById(run.id)).toMatchObject({
-      status: "completed",
+      status: "failed",
       phase: "complete",
       summary: "这是综合智能体生成的最终中文分析。",
     });
@@ -1337,11 +1348,7 @@ describe("AgentTeamOrchestrator", () => {
     );
     vi.spyOn((orch as Any).thoughtRepo, "listByRun").mockReturnValue([]);
 
-    await (orch as Any).handleSynthesisWatchdogTimeout(
-      run.id,
-      rootTask.id,
-      "timed-out-synthesis",
-    );
+    await (orch as Any).handleSynthesisWatchdogTimeout(run.id, rootTask.id, "timed-out-synthesis");
 
     expect(cancelTask).toHaveBeenCalledWith("hung-synthesis-task");
     expect(completeRootTask).not.toHaveBeenCalled();
@@ -1361,5 +1368,258 @@ describe("AgentTeamOrchestrator", () => {
       ]),
     );
     for (const timer of (orch as Any).synthesisWatchdogTimers.values()) clearTimeout(timer);
+  });
+});
+
+describe("team synthesis lifecycle regressions", () => {
+  async function fixture() {
+    mockProfileRouting(false);
+    const now = Date.now();
+    const team = {
+      id: "team",
+      workspaceId: "ws",
+      name: "Team",
+      leadAgentRoleId: "lead",
+      maxParallelAgents: 3,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    } as AgentTeam;
+    const root = {
+      id: "root",
+      title: "研究市场",
+      prompt: "调研企业级 AI 工作站市场，核对来源并交付报告。",
+      status: "executing",
+      workspaceId: "ws",
+      createdAt: now,
+      updatedAt: now,
+    } as Task;
+    const run = {
+      id: "run",
+      teamId: "team",
+      rootTaskId: "root",
+      status: "running",
+      phase: "execute",
+      collaborativeMode: true,
+      startedAt: now,
+    } as AgentTeamRun;
+    const expert = {
+      id: "expert",
+      teamRunId: "run",
+      title: "Ares (explorer)",
+      status: "done",
+      resultSummary: "已核对两家厂商的规格，附有来源。",
+      sortOrder: 1,
+      createdAt: now,
+      updatedAt: now,
+    } as AgentTeamItem;
+    const repos = makeRepos({ team, run, items: [expert] });
+    const tasks = new Map([[root.id, root]]);
+    const createChildTask = vi.fn(async (params: Any) => {
+      const task = {
+        ...params,
+        id: `synthesis-${tasks.size}`,
+        status: "executing",
+        createdAt: now,
+        updatedAt: now,
+      } as Task;
+      tasks.set(task.id, task);
+      return task;
+    });
+    const completeRootTask = vi.fn();
+    const cancelTask = vi.fn(async (id: string) => {
+      const task = tasks.get(id);
+      if (task) task.status = "cancelled";
+    });
+    const { AgentTeamOrchestrator } = await import("../AgentTeamOrchestrator");
+    const orch = new AgentTeamOrchestrator(
+      {
+        getDatabase: () => ({}) as Any,
+        getTaskById: async (id) => tasks.get(id),
+        createChildTask,
+        cancelTask,
+        completeRootTask,
+      },
+      repos,
+    );
+    vi.spyOn((orch as Any).thoughtRepo, "listByRun").mockReturnValue([]);
+    return {
+      ...repos,
+      team,
+      root,
+      run,
+      expert,
+      tasks,
+      createChildTask,
+      completeRootTask,
+      cancelTask,
+      orch,
+    };
+  }
+
+  it.each(["completed", "failed", "cancelled"] as const)(
+    "ignores a late wrap-up click on a %s team while its parent handles a follow-up",
+    async (status) => {
+      const f = await fixture();
+      f.runRepo.update(f.run.id, { status, phase: "complete", completedAt: Date.now() });
+      f.root.prompt = "形成一个详细的 PDF 分析报告";
+      const wrapUpTask = vi.fn();
+      (f.orch as Any).deps.wrapUpTask = wrapUpTask;
+      await f.orch.wrapUpRun(f.run.id);
+      expect(f.root.status).toBe("executing");
+      expect(wrapUpTask).not.toHaveBeenCalled();
+      expect(f.createChildTask).not.toHaveBeenCalled();
+      expect(f.cancelTask).not.toHaveBeenCalled();
+      expect(f.completeRootTask).not.toHaveBeenCalled();
+      expect(f.runRepo.findById(f.run.id)?.status).toBe(status);
+    },
+  );
+
+  it("passes only the successful final worker's output contract to the root", async () => {
+    const f = await fixture();
+    f.root.prompt = "分析 EPAI 并生成 PPT";
+    await (f.orch as Any).transitionToSynthesizePhase(f.run, f.team, f.root, [f.expert]);
+    const task = [...f.tasks.values()].find(t => t.id !== f.root.id)!;
+    const outputSummary = { created: ["artifacts/skills/final/output/EPAI.pptx"], outputCount: 1, folders: [] };
+    task.status = "completed";
+    task.terminalStatus = "ok";
+    task.resultSummary = "EPAI 分析演示文稿已生成并校验。";
+    task.bestKnownOutcome = { capturedAt: Date.now(), outputSummary };
+    await f.orch.tickRun(f.run.id, "delivery_complete");
+    expect(f.completeRootTask).toHaveBeenCalledWith(f.root.id, "completed", task.resultSummary, outputSummary);
+    for (const timer of (f.orch as Any).synthesisWatchdogTimers.values()) clearTimeout(timer);
+  });
+
+  it("reserves synthesis before awaits when wrap-up and completion race", async () => {
+    const f = await fixture();
+    try {
+      await Promise.all([f.orch.tickRun("run"), f.orch.wrapUpRun("run"), f.orch.wrapUpRun("run")]);
+      expect(f.createChildTask).toHaveBeenCalledTimes(1);
+      expect(f.itemRepo.listByRun("run").filter((i) => i.title === "Synthesis")).toHaveLength(1);
+    } finally {
+      f.orch.dispose();
+    }
+  });
+
+  it("signals every member to stop before waiting for a slow member to exit", async () => {
+    const f = await fixture();
+    let release!: () => void;
+    const waiting = new Promise<void>((resolve) => { release = resolve; });
+    f.itemRepo.update({ id: "expert", status: "in_progress", sourceTaskId: "slow" });
+    f.itemRepo.create({ id: "second", teamRunId: "run", title: "Second", status: "in_progress", sourceTaskId: "fast" });
+    f.cancelTask.mockImplementation(async (id) => {
+      expect(f.runRepo.findById("run")?.status).toBe("cancelled");
+      if (id === "slow") await waiting;
+    });
+    try {
+      const stopped = f.orch.cancelRun("run");
+      expect(f.cancelTask.mock.calls.map(([id]) => id)).toEqual(["slow", "fast"]);
+      release();
+      await stopped;
+      expect(f.createChildTask).not.toHaveBeenCalled();
+    } finally {
+      release();
+      f.orch.dispose();
+    }
+  });
+
+  it("does not spawn synthesis when cancellation arrives during collection", async () => {
+    const f = await fixture();
+    let release!: (value: []) => void;
+    const held = new Promise<[]>((resolve) => {
+      release = resolve;
+    });
+    const collect = vi.spyOn(f.orch as Any, "collectSynthesisThoughts").mockReturnValue(held);
+    try {
+      const dispatch = f.orch.tickRun("run");
+      await vi.waitFor(() => expect(collect).toHaveBeenCalled());
+      f.root.status = "cancelled";
+      await f.orch.cancelRun("run");
+      release([]);
+      await dispatch;
+      expect(f.createChildTask).not.toHaveBeenCalled();
+      expect(f.completeRootTask).not.toHaveBeenCalled();
+      expect(f.runRepo.findById("run")?.status).toBe("cancelled");
+    } finally {
+      release([]);
+      f.orch.dispose();
+    }
+  });
+
+  it("creates exactly one retry when timeout cancellation emits a terminal callback", async () => {
+    const f = await fixture();
+    try {
+      await f.orch.tickRun("run");
+      const first = f.itemRepo.listByRun("run").find((i) => i.title === "Synthesis")!;
+      f.cancelTask.mockImplementation(async (id) => {
+        f.tasks.get(id)!.status = "cancelled";
+        await Promise.all([f.orch.onTaskTerminal(id), f.orch.tickRun("run")]);
+      });
+      await Promise.all([
+        (f.orch as Any).handleSynthesisWatchdogTimeout("run", "root", first.id),
+        f.orch.tickRun("run"),
+      ]);
+      expect(f.createChildTask).toHaveBeenCalledTimes(2);
+      expect(f.itemRepo.listByRun("run").filter((i) => i.title === "Synthesis")).toHaveLength(1);
+      expect(f.completeRootTask).not.toHaveBeenCalled();
+      const retry = f.itemRepo.listByRun("run").find((i) => i.title === "Synthesis")!;
+      const retryTimer = (f.orch as Any).synthesisWatchdogTimers.get("run");
+      await f.orch.onTaskTerminal(first.sourceTaskId!);
+      await (f.orch as Any).handleSynthesisWatchdogTimeout("run", "root", first.id);
+      expect((f.orch as Any).synthesisWatchdogTimers.get("run")).toBe(retryTimer);
+      expect((f.orch as Any).synthesisWatchdogItems.get("run")).toBe(retry.id);
+      expect(f.createChildTask).toHaveBeenCalledTimes(2);
+      await (f.orch as Any).handleSynthesisWatchdogTimeout("run", "root", retry.id);
+      expect(f.createChildTask).toHaveBeenCalledTimes(2);
+      expect(f.runRepo.findById("run")?.status).toBe("failed");
+      expect(f.completeRootTask).toHaveBeenCalledWith(
+        "root",
+        "failed",
+        expect.stringContaining("已核对两家厂商"),
+      );
+    } finally {
+      f.orch.dispose();
+    }
+  });
+
+  it("cancels an in-flight spawn that returns after the parent was stopped", async () => {
+    const f = await fixture();
+    let release!: (task: Task) => void;
+    f.createChildTask.mockImplementation(
+      () =>
+        new Promise<Task>((resolve) => {
+          release = resolve;
+        }),
+    );
+    try {
+      const dispatch = f.orch.tickRun("run");
+      await vi.waitFor(() => expect(f.createChildTask).toHaveBeenCalled());
+      await f.orch.cancelRun("run");
+      release({ id: "late-child", status: "executing" } as Task);
+      await dispatch;
+      expect(f.cancelTask).toHaveBeenCalledWith("late-child");
+      expect((f.orch as Any).synthesisWatchdogTimers.size).toBe(0);
+      expect(f.runRepo.findById("run")?.status).toBe("cancelled");
+    } finally {
+      f.orch.dispose();
+    }
+  });
+
+  it("keeps partial expert outcomes blocked rather than promoting them to done", async () => {
+    const f = await fixture();
+    try {
+      f.itemRepo.update({ id: "expert", status: "in_progress", sourceTaskId: "partial" });
+      f.tasks.set("partial", {
+        ...f.root,
+        id: "partial",
+        parentTaskId: "root",
+        status: "completed",
+        terminalStatus: "partial_success",
+      });
+      await f.orch.onTaskTerminal("partial");
+      expect(f.itemRepo.listByRun("run").find((i) => i.id === "expert")?.status).toBe("blocked");
+    } finally {
+      f.orch.dispose();
+    }
   });
 });

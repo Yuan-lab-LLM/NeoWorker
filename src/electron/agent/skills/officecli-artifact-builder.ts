@@ -2033,6 +2033,12 @@ export class OfficeCliArtifactBuilder {
     if (!Array.isArray(slides) || slides.length === 0) {
       throw new Error("At least one slide is required.");
     }
+    for (const [index, slide] of slides.entries()) {
+      if (!["timeline", "process"].includes(slide.slideType || slide.layout || "")) continue;
+      const limit = options.generationMode === "ppt-master" ? 5 : 6;
+      const count = slide.data?.items?.length || slide.content?.length || 0;
+      if (count > limit) throw new Error(`Slide ${index + 1} has ${count} process steps; this layout supports ${limit}. Split the slide without removing steps.`);
+    }
     const officialProfile = this.resolveProfile("pptx", options.officialProfile);
     await this.loadOfficialSkill(officialProfile);
     await this.createBlank(outputPath);
@@ -2240,7 +2246,7 @@ export class OfficeCliArtifactBuilder {
 
       const content = slide.content || (slide.subtitle ? [slide.subtitle] : []);
       const data = slide.data || {};
-      const items = (data.items || []).slice(0, 5);
+      const items = data.items || [];
       const hasImage = Boolean(slide.imagePath);
 
       if (type === "metric" && items.length > 0) {
@@ -2367,12 +2373,12 @@ export class OfficeCliArtifactBuilder {
       } else if (["timeline", "process"].includes(type)) {
         const steps = items.length > 0
           ? items
-          : content.slice(0, 5).map((text, stepIndex) => ({
+          : content.map((text, stepIndex) => ({
               label: String(stepIndex + 1).padStart(2, "0"),
               value: text,
               detail: "",
             }));
-        const count = Math.max(1, Math.min(steps.length, 5));
+        const count = Math.max(1, steps.length);
         commands.push({
           command: "add",
           parent,

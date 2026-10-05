@@ -723,7 +723,7 @@
   background: color-mix(in srgb, var(--color-accent) 3%, transparent);
 }
 
-.aw2-history-row:last-child {
+.aw2-history-list > div:last-child > .aw2-history-row {
   border-bottom: 0;
 }
 
@@ -2215,3 +2215,8 @@
     transition: none;
   }
 }
+
+.aw2-run-result { padding: 12px 24px 20px 68px; border-bottom: 1px solid var(--color-border); }
+.aw2-run-result time { font-size: 12px; color: var(--color-text-secondary); }
+.aw2-run-result p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.7; max-height: 400px; overflow: auto; }
+.aw2-run-result button { color: var(--color-accent); border: 0; background: transparent; cursor: pointer; padding: 4px 0; }

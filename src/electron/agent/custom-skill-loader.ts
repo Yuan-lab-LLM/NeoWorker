@@ -19,6 +19,8 @@ import {
   SkillStatusEntry,
   SkillStatusReport,
   SkillsConfig,
+  type Workspace,
+  isTempWorkspaceId,
 } from "../../shared/types";
 import { SkillEligibilityChecker, getSkillEligibilityChecker } from "./skill-eligibility";
 import { getSkillRegistry as _getSkillRegistry } from "./skill-registry";
@@ -162,10 +164,8 @@ export class CustomSkillLoader {
   private eligibilityChecker: SkillEligibilityChecker;
   private securityReports: Map<string, CapabilitySecurityReport> = new Map();
 
-  // Debounce state for reloadSkills
-  private reloadDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  // Pending and in-flight reloads share one promise, including the delay.
   private reloadPromise: Promise<CustomSkill[]> | null = null;
-  private isReloading: boolean = false;
   private lastLoadStats: {
     bundled: number;
     external: number;
@@ -402,31 +402,19 @@ export class CustomSkillLoader {
    * Uses debouncing to prevent rapid consecutive calls
    */
   async reloadSkills(): Promise<CustomSkill[]> {
-    // If already reloading, return the existing promise
-    if (this.isReloading && this.reloadPromise) {
+    // Joining only after the timer fires strands earlier callers: replacing
+    // their timer never settles their promise. Team members all arrive here
+    // together when switching from the previous task's workspace.
+    if (this.reloadPromise) {
       return this.reloadPromise;
     }
-
-    // Clear any pending debounce timer
-    if (this.reloadDebounceTimer) {
-      clearTimeout(this.reloadDebounceTimer);
-      this.reloadDebounceTimer = null;
-    }
-
-    // Create a debounced reload promise
-    this.reloadPromise = new Promise((resolve) => {
-      this.reloadDebounceTimer = setTimeout(async () => {
-        this.isReloading = true;
-        try {
-          const result = await this.doReloadSkills();
-          resolve(result);
-        } finally {
-          this.isReloading = false;
-          this.reloadPromise = null;
-          this.reloadDebounceTimer = null;
-        }
-      }, RELOAD_DEBOUNCE_MS);
-    });
+    this.reloadPromise = new Promise<void>((resolve) => {
+      setTimeout(resolve, RELOAD_DEBOUNCE_MS);
+    })
+      .then(() => this.doReloadSkills())
+      .finally(() => {
+        this.reloadPromise = null;
+      });
 
     return this.reloadPromise;
   }
@@ -1530,26 +1518,47 @@ export class CustomSkillLoader {
     await shell.openPath(normalized);
   }
 
-  // === Backward compatibility aliases ===
-
   /**
-   * Create a skill (alias for createWorkspaceSkill)
-   * @deprecated Use createWorkspaceSkill instead
+   * Reusable skills belong to the persistent user library. Workspace-scoped
+   * creation is explicit via createWorkspaceSkill, never an incidental result
+   * of the last task that happened to load this shared catalog.
    */
   async createSkill(skill: Omit<CustomSkill, "filePath" | "source">): Promise<CustomSkill> {
-    // For backward compatibility, if no workspace is set, create in managed dir
-    if (!this.workspaceSkillsDir) {
-      const filePath = path.join(this.managedSkillsDir, `${skill.id}.json`);
-      const fullSkill: CustomSkill = {
-        ...skill,
-        source: "managed",
-        filePath,
-      };
-      fs.writeFileSync(filePath, JSON.stringify(fullSkill, null, 2), "utf-8");
-      await this.reloadSkills();
-      return fullSkill;
+    if (!this.validateSkill(skill as CustomSkill) || !/^[a-z0-9-]+$/.test(skill.id)) {
+      throw new Error("Invalid custom skill");
     }
-    return this.createWorkspaceSkill(skill);
+    fs.mkdirSync(this.managedSkillsDir, { recursive: true });
+    const filePath = path.join(this.managedSkillsDir, `${skill.id}.json`);
+    const fullSkill: CustomSkill = { ...skill, source: "managed", filePath };
+    fs.writeFileSync(filePath, JSON.stringify(fullSkill, null, 2), { encoding: "utf-8", flag: "wx" });
+    await this.reloadSkills();
+    return fullSkill;
+  }
+
+  /** Recover legacy generated skills before temporary workspaces are pruned. */
+  recoverTemporaryWorkspaceSkills(workspaces: Pick<Workspace, "id" | "path" | "isTemp">[]): number {
+    let recovered = 0;
+    for (const workspace of workspaces) {
+      if (!workspace.isTemp && !isTempWorkspaceId(workspace.id)) continue;
+      const directory = path.join(workspace.path, SKILLS_FOLDER_NAME);
+      for (const skill of this.loadSkillsFromDir(directory, "workspace")) {
+        if (!/^[a-z0-9-]+$/.test(skill.id) || !skill.filePath) continue;
+        const destination = path.join(this.managedSkillsDir, `${skill.id}.json`);
+        if (fs.existsSync(destination)) continue;
+        try {
+          fs.mkdirSync(this.managedSkillsDir, { recursive: true });
+          const restored: CustomSkill = { ...skill, source: "managed", filePath: destination };
+          fs.writeFileSync(destination, JSON.stringify(restored, null, 2), { encoding: "utf-8", flag: "wx" });
+          recovered += 1;
+          // Keep a backup, but stop the old file overriding future edits or
+          // resurrecting a skill deliberately deleted from the library.
+          fs.renameSync(skill.filePath, `${skill.filePath}.migrated`);
+        } catch (error) {
+          logger.warn(`Could not finish recovering temporary skill ${skill.id}:`, error);
+        }
+      }
+    }
+    return recovered;
   }
 
   /**

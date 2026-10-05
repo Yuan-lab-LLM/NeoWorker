@@ -3909,6 +3909,15 @@ a,
   gap: 0;
 }
 
+/* Text labels must not change the icon baseline when the sidebar collapses. */
+.sidebar :is(.sidebar-new-session-btn, .sidebar-nav-item) > .cli-btn-text,
+.sidebar :is(.sidebar-new-session-btn, .sidebar-nav-item) .cli-new-task-modern-label {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  line-height: 20px;
+}
+
 .sidebar-top-actions-row {
   display: block;
   align-items: center;
@@ -18712,6 +18721,8 @@ a,
 
 .browser-workbench-header {
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   min-height: 44px;
   padding: 6px 14px;
 }
@@ -18725,7 +18736,7 @@ a,
   align-items: center;
   gap: 8px;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 120px;
   overflow: hidden;
 }
 
@@ -18848,6 +18859,16 @@ a,
 .browser-workbench-toolbar {
   display: flex;
   align-items: center;
+}
+
+.browser-workbench-header-actions {
+  flex-shrink: 0;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.browser-workbench-header-actions .br-toggle {
+  margin-right: 4px;
 }
 
 .browser-workbench-toolbar {

@@ -982,7 +982,7 @@ describe("DocumentTools", () => {
       ],
     });
 
-    expect(result.success).toBe(true);
+    expect(result.success, JSON.stringify(result)).toBe(true);
     expect(result.sheetCount).toBe(1);
     expect(result.generationEngine).toBe("officecli");
     expect(result.message).toContain("data.xlsx");

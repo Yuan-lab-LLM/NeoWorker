@@ -39,6 +39,9 @@ export interface CronRunHistoryEntry {
   status: CronJobStatus;
   error?: string;
   taskId?: string;
+  /** Per-run result, independent of the conversation's latest turn. */
+  resultText?: string;
+  resultSinceMs?: number;
   taskStillRunning?: boolean;
   runMode?: CronJobRunMode;
   workspaceId?: string;
@@ -78,6 +81,9 @@ export interface CronJobState {
   lastError?: string;
   lastDurationMs?: number;
   lastTaskId?: string;
+  /** Stable conversation owned by this automation, including across restarts. */
+  sessionTaskId?: string;
+  runningResultSinceMs?: number;
   // Run history (most recent first, limited to maxHistoryEntries)
   runHistory?: CronRunHistoryEntry[];
   // Execution stats
@@ -116,11 +122,12 @@ export interface CronJob {
   schedule: CronSchedule;
   // Task configuration
   workspaceId: string; // Which workspace to run the task in
+  workspaceMode?: "automatic" | "selected";
   taskPrompt: string; // The prompt to send to the agent
   taskTitle?: string; // Optional title for the created task
   /**
    * How the scheduler executes this job.
-   * - new_task: create a fresh task for every run (legacy/default behavior)
+   * - new_task: own a separate conversation for this job; reuse it on subsequent runs
    * - thread_follow_up: send the rendered prompt as a follow-up to targetTaskId
    */
   runMode?: CronJobRunMode;
@@ -131,7 +138,7 @@ export interface CronJob {
   // Advanced options
   timeoutMs?: number; // Maximum execution time (default: no timeout)
   modelKey?: string; // Specific model to use (e.g., 'sonnet-3-5', 'opus-3')
-  maxHistoryEntries?: number; // Max run history entries to keep (default: 10)
+  maxHistoryEntries?: number; // Max run history entries to keep (default: 100)
   // Agent config (tool restrictions, gateway context, etc.)
   taskAgentConfig?: AgentConfig;
   /**
@@ -264,9 +271,13 @@ export interface CronServiceDeps {
   // Optional task status hooks (enables waiting for completion + delivering final output)
   getTaskStatus?: (
     taskId: string,
+    resultSinceMs?: number,
   ) => Promise<
     | {
         status: string;
+        workspaceId?: string;
+        source?: string;
+        scheduledJobId?: string;
         error?: string | null;
         resultSummary?: string | null;
         terminalStatus?:
@@ -299,7 +310,7 @@ export interface CronServiceDeps {
       }
     | null
   >;
-  getTaskResultText?: (taskId: string) => Promise<string | undefined>;
+  getTaskResultText?: (taskId: string, resultSinceMs?: number) => Promise<string | undefined>;
   findActiveTaskForJob?: (params: {
     jobId: string;
     taskTitle?: string;

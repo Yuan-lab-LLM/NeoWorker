@@ -35,13 +35,45 @@ describe("VisionTools cache and page range guards", () => {
     const provider = { createMessage: vi.fn().mockResolvedValueOnce({ content: [], stopReason: "max_tokens" }).mockResolvedValueOnce(answer) };
     const request = { model: "configured-model", maxTokens: 900, messages: [] };
     expect(await requestVisionWithRecovery(provider as Any, request as Any)).toEqual(answer);
-    expect(provider.createMessage).toHaveBeenLastCalledWith({ ...request, maxTokens: 4096 });
+    expect(provider.createMessage).toHaveBeenLastCalledWith({ ...request, maxTokens: 4096, signal: expect.any(AbortSignal) });
     provider.createMessage.mockReset().mockResolvedValue({ content: [], stopReason: "max_tokens" });
     await requestVisionWithRecovery(provider as Any, request as Any);
     expect(provider.createMessage).toHaveBeenCalledTimes(2);
     provider.createMessage.mockReset().mockResolvedValue({ content: [], stopReason: "end_turn" });
     await requestVisionWithRecovery(provider as Any, request as Any);
     expect(provider.createMessage).toHaveBeenCalledTimes(1);
+  });
+  it("aborts a slow vision request and never starts a late retry", async () => {
+    vi.useFakeTimers();
+    try {
+      let finish!: (value: Any) => void;
+      const provider = { createMessage: vi.fn(() => new Promise(resolve => { finish = resolve; })) };
+      const pending = requestVisionWithRecovery(provider as Any, { maxTokens: 900 } as Any, 45_000);
+      const rejected = expect(pending).rejects.toMatchObject({ code: "VISION_TIMEOUT" });
+      await vi.advanceTimersByTimeAsync(45_000);
+      await rejected;
+      expect((provider.createMessage.mock.calls as Any)[0][0].signal.aborted).toBe(true);
+      finish({ content: [], stopReason: "max_tokens" });
+      await Promise.resolve(); await Promise.resolve();
+      expect(provider.createMessage).toHaveBeenCalledTimes(1);
+      expect(createVisionTools().shouldRetryVisionError({ code: "VISION_TIMEOUT" })).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
+  it("shares a single deadline across output-budget recovery attempts", async () => {
+    vi.useFakeTimers();
+    try {
+      const provider = { createMessage: vi.fn()
+        .mockImplementationOnce(() => new Promise(resolve => setTimeout(() => resolve({ content: [], stopReason: "max_tokens" }), 30_000)))
+        .mockImplementationOnce(() => new Promise(() => {})) };
+      const pending = requestVisionWithRecovery(provider as Any, { maxTokens: 900 } as Any, 45_000);
+      const rejected = expect(pending).rejects.toMatchObject({ code: "VISION_TIMEOUT" });
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(provider.createMessage).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(15_000); await rejected;
+      const calls = provider.createMessage.mock.calls as Any;
+      expect(calls[0][0].signal).toBe(calls[1][0].signal);
+      expect(calls[1][0].signal.aborted).toBe(true);
+    } finally { vi.useRealTimers(); }
   });
   it("uses request-specific cache keys (prompt changes should not collide)", () => {
     const vision = createVisionTools();

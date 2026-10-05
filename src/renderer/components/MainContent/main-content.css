@@ -4951,14 +4951,19 @@
 }
 
 .collab-timeline-spawn-name {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  text-align: left;
   font-weight: 500;
   color: var(--color-accent, #8b5cf6);
   cursor: pointer;
 }
 
-.collab-timeline-spawn-name:hover {
-  text-decoration: underline;
-}
+.collab-timeline-spawn-name:hover:not(:disabled) { text-decoration: underline; }
+.collab-timeline-spawn-name:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.collab-timeline-spawn-name:disabled { cursor: default; }
 
 .collab-timeline-spawn-desc {
   color: var(--color-text-muted);
@@ -5634,6 +5639,35 @@
 .timeline-controls-status .timeline-controls-progress {
   flex: 1 1 auto;
 }
+
+.live-task-progress {
+  margin: 12px 0 20px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  max-width: 680px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+.live-task-progress-current, .live-task-progress-recent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.live-task-progress-current { color: var(--color-text); font-weight: 500; flex-wrap: wrap; }
+.live-task-progress-current > span:first-of-type { overflow-wrap: anywhere; min-width: 0; }
+.live-task-progress-current svg { color: var(--color-accent); flex-shrink: 0; }
+.live-task-progress-recent { margin: 5px 0 0 24px; font-size: 12px; }
+.live-task-progress-recent > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-task-progress-recent svg { flex-shrink: 0; }
+.live-task-progress-count, .live-task-progress-state { flex-shrink: 0; color: var(--color-text-muted); font-size: 11px; font-weight: 400; }
+.live-task-progress-recent.is-failed { color: var(--color-error, #c94c4c); }
+.live-task-progress-silence { color: var(--color-text-muted); font-size: 12px; margin: 5px 0 0 24px; }
+.live-task-progress-spinner { animation: live-task-progress-spin 1s linear infinite; }
+@keyframes live-task-progress-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .live-task-progress-spinner { animation: none; } }
 
 .timeline-controls-label.is-working::before {
   content: "";
@@ -19245,3 +19279,5 @@
   opacity: 0.72;
   transform: none;
 }
+
+.collab-lines-details[hidden] { display: none; }
