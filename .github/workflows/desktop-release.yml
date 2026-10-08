@@ -139,7 +139,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx vitest --config config/vitest.config.ts run src/electron/updater/__tests__/update-manager-config.test.ts src/renderer/components/__tests__/Sidebar.test.ts --maxWorkers=1
+          npx vitest --config config/vitest.config.ts run src/shared/__tests__/product-brand.test.ts src/electron/updater/__tests__/update-manager-config.test.ts src/renderer/components/__tests__/Sidebar.test.ts --maxWorkers=1
           node --test scripts/qa/desktop-smoke-process.test.mjs
       - name: PDF delivery regressions
         run: npx vitest --config config/vitest.config.ts run src/electron/utils/__tests__/pdf-generator.test.ts src/electron/utils/__tests__/pdf-math.test.ts src/electron/agent/__tests__/verified-delivery-artifacts.test.ts src/renderer/components/__tests__/ProjectContextPanel.test.ts src/renderer/components/__tests__/main-content-working-state.test.ts --maxWorkers=1
