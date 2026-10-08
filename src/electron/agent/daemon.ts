@@ -1,4 +1,6 @@
 import { EventEmitter } from "events";
+import { WorkTurnService } from "../sessions/WorkTurnService";
+import { WorkTurnRepository } from "../database/WorkTurnRepository";
 import * as fs from "fs";
 import * as crypto from "crypto";
 import * as path from "path";
@@ -655,12 +657,24 @@ export class AgentDaemon extends EventEmitter {
   private static readonly TRANSIENT_RETRY_ERROR_REGEX =
     /^Transient provider error\.\s*Retry\s+\d+\/\d+\s+in\s+\d+s\./i;
 
+  private settleWorkTurn(taskId: string): void {
+    if (!this.workTurns?.accepts(taskId, true)) return;
+    const task = this.taskRepo.findById(taskId);
+    if (task && ["completed", "failed", "cancelled"].includes(task.status)) {
+      this.logEvent(taskId, "task_status", { status: task.status, terminalStatus: task.terminalStatus });
+    }
+  }
+
+  private workTurns?: WorkTurnService;
+
   constructor(
     private dbManager: DatabaseManager,
     private options: AgentDaemonOptions = {},
   ) {
     super();
     const db = dbManager.getDatabase();
+    this.workTurns = new WorkTurnService(new WorkTurnRepository(db));
+    this.workTurns.repo.interruptRunning();
     this.taskRepo = new TaskRepository(db);
     this.eventRepo = new TaskEventRepository(db);
     this.workspaceRepo = new WorkspaceRepository(db);
@@ -2003,6 +2017,14 @@ export class AgentDaemon extends EventEmitter {
     if (images && images.length > 0) {
       this.pendingTaskImages.set(task.id, images);
     }
+    if (this.workTurns && !this.workTurns.repo.current(task.id)) {
+      if (task.parentTaskId && (!this.workTurns.accepts(task.parentTaskId) ||
+        this.workTurns.repo.current(task.parentTaskId)?.state === "cancelled")) {
+        this.cancelTaskRecord(task.id, "Parent request has already been replaced");
+        return;
+      }
+      this.workTurns.begin(task.id, task.parentTaskId, false, true);
+    }
     await this.queueManager.enqueue(task);
 
     // If the task was queued (concurrency full), emit an explicit event so
@@ -2027,7 +2049,27 @@ export class AgentDaemon extends EventEmitter {
   /**
    * Start executing a task immediately (internal - called by queue manager)
    */
-  async startTaskImmediate(task: Task): Promise<void> {
+  async startTaskImmediate(task: Task, turnScoped = false): Promise<void> {
+    if (this.workTurns?.repo.current(task.id)?.state === "cancelled") {
+      this.cancelTaskRecord(task.id, "Request was cancelled before execution started");
+      this.finishQueueSlot(task.id);
+      return;
+    }
+    if (this.workTurns && task.parentTaskId) {
+      const childTurn = this.workTurns.repo.current(task.id);
+      const parentTurn = this.workTurns.repo.current(task.parentTaskId);
+      if (parentTurn?.state === "cancelled" ||
+        (childTurn?.parentTurnId && childTurn.parentTurnId !== parentTurn?.id)) {
+        this.workTurns.cancel(task.id);
+        this.cancelTaskRecord(task.id, "Parent request is no longer active");
+        this.finishQueueSlot(task.id);
+        return;
+      }
+    }
+    if (this.workTurns && !turnScoped) {
+      const turn = this.workTurns.begin(task.id, task.parentTaskId, true);
+      return this.workTurns.run(turn, () => this.startTaskImmediate(task, true));
+    }
     console.log(`[AgentDaemon] Starting task ${task.id}: ${task.title}`);
 
     const registeredWorkspace = this.workspaceRepo.findById(task.workspaceId);
@@ -2251,12 +2293,15 @@ export class AgentDaemon extends EventEmitter {
     executor
       .execute()
       .then(() => {
+        if (this.workTurns && !this.workTurns.accepts(effectiveTask.id)) return;
+        this.settleWorkTurn(effectiveTask.id);
         MemoryService.clearExecutionSideChannelPolicy();
         // After execution completes, process any follow-ups that were queued
         // while the executor was running but arrived too late for the loop to pick up.
         this.processOrphanedFollowUps(effectiveTask.id, executor);
       })
       .catch((error) => {
+        if (this.workTurns && !this.workTurns.accepts(effectiveTask.id)) return;
         MemoryService.clearExecutionSideChannelPolicy();
         console.error(
           `[AgentDaemon] Task ${effectiveTask.id} execution failed:`,
@@ -2351,7 +2396,7 @@ export class AgentDaemon extends EventEmitter {
    * Resume a single interrupted task by reconstructing the executor from saved
    * conversation snapshots and plan events, then continuing execution.
    */
-  private async resumeInterruptedTask(task: Task): Promise<void> {
+  private async resumeInterruptedTask(task: Task, turnScoped = false): Promise<void> {
     // Guard against double-resume (e.g. rapid restarts)
     const currentTask = this.taskRepo.findById(task.id);
     if (!currentTask || currentTask.status !== "interrupted") {
@@ -2361,6 +2406,10 @@ export class AgentDaemon extends EventEmitter {
       return;
     }
 
+    if (this.workTurns && !turnScoped) {
+      const turn = this.workTurns.begin(task.id, task.parentTaskId, true);
+      return this.workTurns.run(turn, () => this.resumeInterruptedTask(task, true));
+    }
     const workspace = this.workspaceRepo.findById(task.workspaceId);
     if (!workspace) {
       throw new Error(
@@ -2519,10 +2568,13 @@ export class AgentDaemon extends EventEmitter {
     executor
       .resumeAfterInterruption()
       .then(() => {
+        if (this.workTurns && !this.workTurns.accepts(effectiveTask.id)) return;
+        this.settleWorkTurn(effectiveTask.id);
         MemoryService.clearExecutionSideChannelPolicy();
         this.processOrphanedFollowUps(effectiveTask.id, executor);
       })
       .catch((error) => {
+        if (this.workTurns && !this.workTurns.accepts(effectiveTask.id)) return;
         MemoryService.clearExecutionSideChannelPolicy();
         console.error(
           `[AgentDaemon] Resumed task ${effectiveTask.id} failed:`,
@@ -2665,7 +2717,12 @@ export class AgentDaemon extends EventEmitter {
   private launchContinuationExecution(
     effectiveTask: Task,
     executor: TaskExecutor,
+    turnScoped = false,
   ): void {
+    if (this.workTurns && !turnScoped) {
+      const turn = this.workTurns.begin(effectiveTask.id, effectiveTask.parentTaskId, true);
+      return this.workTurns.run(turn, () => this.launchContinuationExecution(effectiveTask, executor, true));
+    }
     const guardrails = GuardrailManager.loadSettings();
     MemoryService.applyExecutionSideChannelPolicy(
       guardrails.sideChannelDuringExecution,
@@ -2674,10 +2731,13 @@ export class AgentDaemon extends EventEmitter {
     executor
       .continueAfterBudgetExhausted()
       .then(() => {
+        if (this.workTurns && !this.workTurns.accepts(effectiveTask.id)) return;
+        this.settleWorkTurn(effectiveTask.id);
         MemoryService.clearExecutionSideChannelPolicy();
         this.processOrphanedFollowUps(effectiveTask.id, executor);
       })
       .catch((error) => {
+        if (this.workTurns && !this.workTurns.accepts(effectiveTask.id)) return;
         MemoryService.clearExecutionSideChannelPolicy();
         console.error(
           `[AgentDaemon] Continued task ${effectiveTask.id} failed:`,
@@ -4832,10 +4892,12 @@ export class AgentDaemon extends EventEmitter {
   }
 
   async cancelTask(taskId: string): Promise<void> {
+    if (this.workTurns && !this.workTurns.accepts(taskId)) return;
     const existing = this.taskRepo.findById(taskId);
     if (!existing) {
       throw new Error(`Task ${taskId} not found`);
     }
+    this.workTurns?.cancel(taskId);
     // Close team scheduling before any executor cancellation can emit a
     // terminal callback and start synthesis behind the user's Stop action.
     if (this.teamOrchestrator && !existing.parentTaskId) {
@@ -6642,6 +6704,14 @@ export class AgentDaemon extends EventEmitter {
           ? {}
           : ({ value: payload } as Record<string, unknown>);
 
+    if (this.workTurns && !this.workTurns.stamp(taskId, payloadObj)) return;
+    if (this.workTurns?.repo.current(taskId)?.state === "cancelled") {
+      const semanticType = payloadObj.legacyType || type;
+      if (semanticType === "task_completed" || semanticType === "follow_up_completed" ||
+        (semanticType === "task_status" && payloadObj.status !== "cancelled" &&
+          payloadObj.reason !== "stop_reconciled" && payloadObj.followUpCancelled !== true)) return;
+    }
+
     const securityLifecycleEvent =
       type === "task_created"
         ? "SessionStart"
@@ -8113,22 +8183,38 @@ export class AgentDaemon extends EventEmitter {
       options.legacyPayload || (event.payload as Record<string, unknown>);
     const effectiveType = effectiveLegacyType || event.type;
 
-    const storedEvent = this.eventRepo.create({
-      id: event.id,
-      taskId: event.taskId,
-      timestamp: event.timestamp,
-      type: event.type,
-      payload: event.payload,
-      schemaVersion: 2,
-      eventId: event.eventId,
-      seq: event.seq,
-      ts: event.ts,
-      status: event.status,
-      stepId: event.stepId,
-      groupId: event.groupId,
-      actor: event.actor,
-      legacyType: effectiveLegacyType as Any,
-    });
+    const persist = () => {
+      const storedEvent = this.eventRepo.create({
+        id: event.id,
+        taskId: event.taskId,
+        timestamp: event.timestamp,
+        type: event.type,
+        payload: event.payload,
+        schemaVersion: 2,
+        eventId: event.eventId,
+        seq: event.seq,
+        ts: event.ts,
+        status: event.status,
+        stepId: event.stepId,
+        groupId: event.groupId,
+        actor: event.actor,
+        legacyType: effectiveLegacyType as Any,
+      });
+      if (this.workTurns && storedEvent.payload?.workTurnId) {
+        const taskForTurn = this.taskRepo.findById(event.taskId);
+        const workspace = taskForTurn ? this.workspaceRepo.findById(taskForTurn.workspaceId) : undefined;
+        const turn = this.workTurns.record(storedEvent, taskForTurn?.worktreePath || workspace?.path);
+        if (turn) {
+          storedEvent.payload = { ...storedEvent.payload, workTurn: turn };
+          if (turn.outputSummary && (effectiveType === "task_completed" || effectiveType === "follow_up_completed")) {
+            storedEvent.payload.outputSummary = turn.outputSummary;
+          }
+          this.eventRepo.updatePayloadById(storedEvent.id, storedEvent.payload);
+        }
+      }
+      return storedEvent;
+    };
+    const storedEvent = this.workTurns ? this.workTurns.repo.transaction(persist) : persist();
     const storedLegacyPayload = sanitizeTimelinePayloadForStorage(
       effectiveLegacyPayload,
     ) as Record<string, unknown>;
@@ -9270,6 +9356,7 @@ export class AgentDaemon extends EventEmitter {
    * Update task status
    */
   updateTaskStatus(taskId: string, status: Task["status"]): void {
+    if (this.workTurns && (!this.workTurns.accepts(taskId) || (status !== "cancelled" && this.workTurns.repo.current(taskId)?.state === "cancelled"))) return;
     const existing = this.taskRepo.findById(taskId);
     const currentStatus = existing
       ? deriveCanonicalTaskStatus(existing)
@@ -9292,6 +9379,8 @@ export class AgentDaemon extends EventEmitter {
   }
 
   beginFollowUpRun(taskId: string): Task | undefined {
+    if (this.workTurns && (!this.workTurns.accepts(taskId) ||
+      this.workTurns.repo.current(taskId)?.state === "cancelled")) return undefined;
     const existing = this.taskRepo.findById(taskId);
     if (!existing) return undefined;
 
@@ -10458,6 +10547,8 @@ export class AgentDaemon extends EventEmitter {
       >
     >,
   ): void {
+    if (this.workTurns && !this.workTurns.accepts(taskId)) return;
+    if (updates.status && updates.status !== "cancelled" && this.workTurns?.repo.current(taskId)?.state === "cancelled") return;
     const existing = this.taskRepo.findById(taskId);
     const currentStatus = existing
       ? deriveCanonicalTaskStatus(existing)
@@ -10551,6 +10642,7 @@ export class AgentDaemon extends EventEmitter {
       >
     >,
   ): void {
+    if (this.workTurns && (!this.workTurns.accepts(taskId) || this.workTurns.repo.current(taskId)?.state === "cancelled")) return;
     const existingTask = this.taskRepo.findById(taskId);
     const currentStatus = existingTask
       ? deriveCanonicalTaskStatus(existingTask)
@@ -10696,6 +10788,7 @@ export class AgentDaemon extends EventEmitter {
       errorMessage?: string | null;
     },
   ): void {
+    if (this.workTurns && !this.workTurns.accepts(taskId)) return;
     const existing = this.taskRepo.findById(taskId);
     const currentStatus = existing
       ? deriveCanonicalTaskStatus(existing)
@@ -11373,12 +11466,19 @@ export class AgentDaemon extends EventEmitter {
       agentConfig?: AgentConfig;
     },
   ): void {
+    if (this.workTurns && (!this.workTurns.accepts(taskId) || this.workTurns.repo.current(taskId)?.state === "cancelled")) return;
     const existingTask = this.taskRepo.findById(taskId);
     if (!existingTask) {
       console.warn(
         `[AgentDaemon] completeTask called for unknown task ${taskId}`,
       );
       return;
+    }
+    if (existingTask.agentConfig?.collaborativeMode || existingTask.agentConfig?.multiLlmMode) {
+      const childOutcome = this.workTurns?.teamOutcome(taskId);
+      if (childOutcome && metadata?.terminalStatus !== "failed") {
+        metadata = { ...metadata, terminalStatus: childOutcome, failureClass: "contract_error" };
+      }
     }
     const currentStatus = deriveCanonicalTaskStatus(existingTask);
     if (isTerminalTaskStatus(currentStatus)) {
@@ -11475,7 +11575,14 @@ export class AgentDaemon extends EventEmitter {
     // turn a successfully delivered artifact into a false terminal failure.
     // The executor has already resolved continuation vs. a new request. An
     // explicit empty list must not fall back to a previous PPT task's contract.
-    const requiredArtifactExtensions = (
+    // Match the executor's delegated completion contract: read-only research
+    // and verification workers deliver findings to their parent, not another
+    // copy of the parent's PDF/PPT. Implementers, synthesis and root tasks
+    // still have to produce every requested artifact.
+    const workerRole = resolveWorkerRoleKind(existingTask.workerRole);
+    const findingsOnlyChild = Boolean(existingTask.parentTaskId) &&
+      (workerRole === "researcher" || workerRole === "verifier");
+    const requiredArtifactExtensions = (findingsOnlyChild ? [] : (
       metadata?.currentTurnRequiredArtifactExtensions ?? extractExplicitOutputExtensions(
         "",
         canonicalTaskIntent ||
@@ -11483,7 +11590,7 @@ export class AgentDaemon extends EventEmitter {
           existingTask.userPrompt ||
           existingTask.prompt,
       )
-    ).map((extension) => extension.toLowerCase());
+    )).map((extension) => extension.toLowerCase());
     const copiedInputArtifactPaths = new Set<string>();
     for (const event of historicalEvents) {
       const payload =
@@ -11524,6 +11631,19 @@ export class AgentDaemon extends EventEmitter {
           deliveredArtifactPaths.add(artifact.path.trim());
         }
       }
+    }
+    const workTurn = this.workTurns?.repo.current(taskId);
+    if (workTurn && this.workTurns) {
+      const workspace = this.workspaceRepo.findById(existingTask.workspaceId);
+      const verifiedOutputs = this.workTurns.validateOutputs(workTurn, {
+        created: [...deliveredArtifactPaths],
+        outputCount: deliveredArtifactPaths.size,
+        folders: [],
+        primaryOutputPath: metadata?.outputSummary?.primaryOutputPath,
+      }, existingTask.worktreePath || workspace?.path);
+      deliveredArtifactPaths.clear();
+      for (const candidate of verifiedOutputs.created) deliveredArtifactPaths.add(candidate);
+      metadata = { ...metadata, outputSummary: verifiedOutputs };
     }
     const deliveredArtifactExtensions = new Set(
       Array.from(deliveredArtifactPaths.values())
@@ -12911,37 +13031,47 @@ export class AgentDaemon extends EventEmitter {
       };
     }
 
-    // Send the message (executor is idle, acquire mutex normally)
-    if (effectiveMessage !== message) {
-      executor.suppressNextUserMessageEvent();
-      this.logEvent(taskId, "user_message", {
-        message,
-        ...(annotationContext.annotations.length > 0
-          ? { annotationContextInjected: true }
-          : {}),
-        ...(effectiveOptions?.activeArtifactContext
-          ? { activeArtifactContextInjected: true }
-          : {}),
-        ...(quotedAssistantMessage ? { quotedAssistantMessage } : {}),
-      });
-    }
-    this.activeUserFollowUpDispatches.add(taskId);
-    try {
-      await executor.sendMessage(
-        effectiveMessage,
-        images,
-        quotedAssistantMessage,
-        {
-          agentConfigOverride: turnAgentConfigOverride,
-        },
-      );
-    } finally {
-      this.activeUserFollowUpDispatches.delete(taskId);
-    }
-    // A new message can arrive while this follow-up itself is executing.
-    // Continue draining daemon-owned follow-ups until the conversation catches up.
-    this.processOrphanedFollowUps(taskId, executor);
-    return { queued: false };
+    const dispatch = async () => {
+      // Send the message (executor is idle, acquire mutex normally)
+      if (effectiveMessage !== message) {
+        executor.suppressNextUserMessageEvent();
+        this.logEvent(taskId, "user_message", {
+          message,
+          ...(annotationContext.annotations.length > 0
+            ? { annotationContextInjected: true }
+            : {}),
+          ...(effectiveOptions?.activeArtifactContext
+            ? { activeArtifactContextInjected: true }
+            : {}),
+          ...(quotedAssistantMessage ? { quotedAssistantMessage } : {}),
+        });
+      }
+      this.activeUserFollowUpDispatches.add(taskId);
+      try {
+        await executor.sendMessage(
+          effectiveMessage,
+          images,
+          quotedAssistantMessage,
+          {
+            agentConfigOverride: turnAgentConfigOverride,
+          },
+        );
+      } catch (error) {
+        this.failTask(taskId, error instanceof Error ? error.message : String(error));
+        throw error;
+      } finally {
+        this.activeUserFollowUpDispatches.delete(taskId);
+      }
+      this.settleWorkTurn(taskId);
+      // A new message can arrive while this follow-up itself is executing.
+      // Continue draining daemon-owned follow-ups until the conversation catches up.
+      this.processOrphanedFollowUps(taskId, executor);
+      return { queued: false as const };
+    };
+    if (!this.workTurns) return dispatch();
+    const turn = this.workTurns.begin(taskId, effectiveTask.parentTaskId,
+      this.workTurns.repo.current(taskId)?.state === "waiting");
+    return this.workTurns.run(turn, dispatch);
   }
 
   /**

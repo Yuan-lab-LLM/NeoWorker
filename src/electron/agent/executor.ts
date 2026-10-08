@@ -135,6 +135,7 @@ import type {
 import { createVerificationRuntime } from "./runtime/VerificationRuntime";
 import {
   HermesRuntimeAdapter,
+  HermesRuntimeStartupError,
   type HermesRuntimeOptions,
   type HermesSessionCheckpoint,
 } from "./runtime/hermes-runtime-adapter";
@@ -5215,10 +5216,16 @@ export class TaskExecutor {
             ? await runtime.retry(prompt)
             : await runtime.prompt(prompt);
         }
-        return await runtime.retry(prompt);
+        // A startup failure has no session to resume and has not dispatched
+        // the prompt. Only that classified failure may start a fresh session.
+        return runtime.getCheckpoint()
+          ? await runtime.retry(prompt)
+          : await runtime.prompt(prompt);
       } catch (error) {
         const checkpoint = runtime.getCheckpoint();
-        const hostOwned = checkpoint?.toolOwnership === "neoworker";
+        const startupFailure = error instanceof HermesRuntimeStartupError;
+        const hostOwned = checkpoint?.toolOwnership === "neoworker" ||
+          (startupFailure && error.toolOwnership === "neoworker");
         const toolProgress = checkpoint?.toolProgress;
         const hasToolProgress = Boolean(
           toolProgress?.activeToolCallIds?.length ||
@@ -5230,6 +5237,7 @@ export class TaskExecutor {
           this.hasUnresolvedHermesToolProgress(runtime);
         if (
           attempt >= maxAttempts - 1 ||
+          (startupFailure && attempt >= 1) ||
           !hostOwned ||
           unresolvedToolProgress ||
           !this.isHermesTransientRuntimeError(error)
@@ -5262,6 +5270,7 @@ export class TaskExecutor {
           reason,
           safeBeforeToolDispatch: !hasToolProgress,
           safeForAutomaticRetry: true,
+          ...(startupFailure ? { startupStage: error.stage } : {}),
         });
         await this.waitForHermesRetryDelay(delayMs, error);
         attempt += 1;
@@ -13015,6 +13024,7 @@ ${transcript}
   }
 
   private shouldFinalizeAsPartialSuccess(error: unknown): boolean {
+    if (error instanceof HermesRuntimeStartupError) return false;
     const candidate = String(
       this.buildResultSummary() || this.getContentFallback() || "",
     ).trim();
@@ -13227,6 +13237,7 @@ ${transcript}
   }
 
   private classifyFailure(error: unknown): NonNullable<Task["failureClass"]> {
+    if (error instanceof HermesRuntimeStartupError) return "dependency_unavailable";
     if (this.isBudgetExhaustionError(error)) return "budget_exhausted";
     if (this.isSourceValidationGuardError(error)) return "contract_error";
     const message = String((error as Any)?.message || error || "");
@@ -19081,11 +19092,7 @@ ${transcript}
               this.completionVerificationMetadata.verificationMessage,
           }
         : {};
-    // Attach citations to task completion event
-    const citations = this.citationTracker?.getCitations();
-    if (citations?.length) {
-      this.emitEvent("citations_collected", { citations });
-    }
+    this.emitCollectedCitations();
     this.daemon.completeTask(this.task.id, summary, {
       ...(this.activeFollowUpCompletionContract ? {
         currentTurnRequiredArtifactExtensions: [...this.activeFollowUpCompletionContract.requiredArtifactExtensions],
@@ -19127,6 +19134,13 @@ ${transcript}
       /* best-effort */
     });
     void this.closeAcpxRuntimeSession("completion");
+  }
+
+  private emitCollectedCitations(): void {
+    const citations = this.citationTracker?.getCitations();
+    if (citations?.length) {
+      this.emitEvent("citations_collected", { citations });
+    }
   }
 
   private finalizeTaskBestEffort(
@@ -19297,6 +19311,10 @@ ${transcript}
         failedStepIds: explicitTerminalState.failedStepIds,
       });
     }
+    // Hermes uses best-effort finalization even after a successful prompt.
+    // Persist its sources before completeTask runs the same evidence gate as
+    // native execution; otherwise sourced research is downgraded to partial.
+    this.emitCollectedCitations();
     this.daemon.completeTask(this.task.id, summary, {
       ...(this.activeFollowUpCompletionContract ? {
         currentTurnRequiredArtifactExtensions: [...this.activeFollowUpCompletionContract.requiredArtifactExtensions],
@@ -29406,6 +29424,9 @@ You are continuing a previous conversation. The context from the previous conver
 
   private isTransientProviderError(error: Any): boolean {
     if (!error) return false;
+    // Startup recovery already has its own bounded retry. Do not restart the
+    // whole task again via the provider retry queue after that budget is used.
+    if (error instanceof HermesRuntimeStartupError) return false;
     if (error.retryable === false) return false;
     if (error.retryable === true) return true;
     const message = String(error.message || "").toLowerCase();
@@ -33068,6 +33089,10 @@ You are continuing a previous conversation. The context from the previous conver
   }
 
   private async finalizeWithTimeoutRecovery(error: Any): Promise<boolean> {
+    // No work ran in this turn. A second model's best-effort summary cannot
+    // recover an engine that never started, and would mask the actual cause
+    // with a missing-artifact error at completion validation.
+    if (error instanceof HermesRuntimeStartupError) return false;
     const completionContract = this.buildCompletionContract();
     // External runtimes write through shell commands, which are not necessarily
     // observed by the file tracker. Discover the byte-bound, QA-approved output
@@ -44625,7 +44650,14 @@ Return ONLY a JSON object:
       : "The task execution service encountered an error. This turn has ended and your context was preserved. Please try again.";
   }
 
+  private getHermesStartupFailureDisplayMessage(): string {
+    return this.taskRequiresSimplifiedChineseOutput()
+      ? "执行引擎未能启动，本轮尚未开始执行任务。对话和已有文件已保留，请重试。"
+      : "The execution engine could not start, so this turn did not begin its work. Your conversation and existing files have been preserved. Please retry.";
+  }
+
   private buildFollowUpFailureMessage(error: Any): string {
+    if (error instanceof HermesRuntimeStartupError) return this.getHermesStartupFailureDisplayMessage();
     const raw = String(error?.message || "Unknown error");
     const lower = raw.toLowerCase();
 
@@ -44705,6 +44737,7 @@ Return ONLY a JSON object:
     error: Any,
     failureClass: NonNullable<Task["failureClass"]>,
   ): string {
+    if (error instanceof HermesRuntimeStartupError) return this.getHermesStartupFailureDisplayMessage();
     const raw = String(error?.message || error || "Unknown error");
     if (error?.code === "REQUEST_TIMEOUT") {
       return this.taskRequiresSimplifiedChineseOutput()

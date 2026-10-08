@@ -2518,9 +2518,7 @@ export class ToolRegistry {
       "web_fetch",
       async ({ request }) => {
         const result = await this.webFetchTools.webFetch(request.input);
-        if (this.citationTracker) {
-          this.citationTracker.addFromFetch(request.input.url, request.input.url);
-        }
+        this.citationTracker?.addFromFetchResult(result);
         return result;
       },
       readParallelSchedulerSpec,
@@ -4369,9 +4367,7 @@ ${skillDescriptions}`;
     // Web fetch tools (preferred for reading web content)
     if (name === "web_fetch") {
       const result = await this.webFetchTools.webFetch(input);
-      if (this.citationTracker) {
-        this.citationTracker.addFromFetch(input.url, input.url);
-      }
+      this.citationTracker?.addFromFetchResult(result);
       return result;
     }
     if (name === "http_request") return await this.webFetchTools.httpRequest(input);

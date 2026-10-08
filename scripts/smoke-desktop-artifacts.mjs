@@ -350,6 +350,7 @@ async function validatePackagedNeoWorkerRuntime(asarPath) {
   );
   if (
     hermesManifest.hermesAgentVersion !== "0.18.0" ||
+    hermesManifest.distribution !== "onedir" ||
     hermesManifest.platform !== platform ||
     hermesManifest.executable !== binaryName
   ) {

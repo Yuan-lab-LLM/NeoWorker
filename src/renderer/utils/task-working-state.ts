@@ -1,3 +1,4 @@
+import { resolveCurrentWorkTurn } from "../../shared/work-turn-projection";
 import type { Task, TaskEvent } from "../../shared/types";
 import { deriveCanonicalTaskStatus } from "../../shared/task-status";
 import { getEffectiveTaskEventType } from "./task-event-compat";
@@ -5,9 +6,12 @@ import { getEffectiveTaskEventType } from "./task-event-compat";
 const ACTIVE_WORK_SIGNAL_WINDOW_MS = 30_000;
 
 export function markTaskStopRequested(task: Task, now = Date.now()): Task {
-  const terminal = ["completed", "failed", "cancelled"].includes(task.status);
+  const terminal = task.currentTurn
+    ? !["running", "queued", "waiting"].includes(task.currentTurn.state)
+    : ["completed", "failed", "cancelled"].includes(task.status);
   return {
     ...task,
+    ...(task.currentTurn && !terminal ? { currentTurn: { ...task.currentTurn, state: "cancelled" as const, finishedAt: now } } : {}),
     status: terminal ? task.status : "cancelled",
     updatedAt: now,
     completedAt: terminal ? task.completedAt : now,
@@ -111,6 +115,15 @@ export function deriveTaskWorkTiming(
   now = Date.now(),
 ): { startedAt: number; completedAt?: number; isActive: boolean } {
   if (!task) return { startedAt: now, isActive: false };
+  const turn = resolveCurrentWorkTurn(task, events);
+  if (turn) {
+    const optimistic = optimisticStartedAt !== null && optimisticStartedAt > turn.startedAt &&
+      optimisticStartedAt >= (turn.finishedAt ?? Number.POSITIVE_INFINITY);
+    return { startedAt: optimistic ? optimisticStartedAt! : turn.startedAt,
+      completedAt: optimistic || turn.state === "running" ? undefined : turn.finishedAt,
+      isActive: optimistic || turn.state === "running" };
+  }
+
   let latestUserAt: number | undefined;
   let latestTerminalAt: number | undefined;
   for (const event of events) {
@@ -187,6 +200,9 @@ export function isTaskActivelyWorking(
   now = Date.now(),
 ): boolean {
   if (!task) return false;
+  const turn = resolveCurrentWorkTurn(task, events);
+  if (turn) return turn.state === "running";
+
 
   // The persisted status can briefly lag the terminal marker while the
   // renderer receives the final event. Always make lifecycle decisions from

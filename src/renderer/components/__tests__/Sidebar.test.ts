@@ -267,7 +267,8 @@ describe("Sidebar top-level destinations", () => {
     );
 
     expect(markup).toMatch(/class="[^"]*\bcli-update-btn\b[^"]*"/);
-    expect(markup).toContain(">下载</span>");
+    expect(markup).toContain(">更新</span>");
+    expect(markup).toContain('aria-label="打开更新设置"');
     expect(markup).not.toContain("0.5.46");
     expect(markup).not.toContain("update-banner");
   });

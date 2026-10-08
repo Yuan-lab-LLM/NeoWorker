@@ -1,7 +1,8 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as path from "node:path";
 import { HermesAcpClient } from "../hermes-acp-client";
-import { HermesRuntimeAdapter, type HermesSessionCheckpoint } from "../hermes-runtime-adapter";
+import { HermesRuntimeAdapter, HermesRuntimeStartupError, type HermesSessionCheckpoint } from "../hermes-runtime-adapter";
 
 const fixture = path.join(__dirname, "fixtures", "hermes-acp-fixture.cjs");
 const delayedShutdownFixture = path.join(__dirname, "fixtures", "hermes-acp-delayed-shutdown.cjs");
@@ -25,6 +26,17 @@ function runtime(extra: Partial<ConstructorParameters<typeof HermesRuntimeAdapte
 }
 
 describe("Hermes ACP subprocess transport", () => {
+  it("attributes warm-session notifications to the active request instead of the first connection", async () => {
+    const scope = new AsyncLocalStorage<string>();
+    const seen: Array<string | undefined> = [];
+    const r = runtime({ onUpdate: () => { seen.push(scope.getStore()); } });
+    await scope.run("turn-one", () => r.prompt("hello"));
+    expect(seen).toEqual(["turn-one", "turn-one"]);
+    seen.length = 0;
+    await scope.run("turn-two", () => r.prompt("hello again"));
+    expect(seen).toEqual(["turn-two", "turn-two"]);
+  });
+
   it("keeps progressing prompts alive within the hard deadline", async () => {
     const c = await client();
     await c.initialize();
@@ -212,6 +224,18 @@ describe("Hermes ACP subprocess transport", () => {
 });
 
 describe('Hermes runtime session', () => {
+  it('classifies a real initialization timeout before dispatch and can start again cleanly', async () => {
+    const env = { NEOWORKER_TEST_HANG_INITIALIZE: '1' };
+    const events: Any[] = [];
+    const r = runtime({ env, firstByteTimeoutMs: 200, onTransportEvent: event => events.push(event) });
+    const error = await r.prompt('hello').catch(error => error);
+    expect(error).toBeInstanceOf(HermesRuntimeStartupError);
+    expect(error).toMatchObject({ code: 'FIRST_BYTE_TIMEOUT', stage: 'initialize' });
+    expect(r.getCheckpoint()).toBeUndefined();
+    expect(events.some(event => event.method === 'session/prompt')).toBe(false);
+    env.NEOWORKER_TEST_HANG_INITIALIZE = '0';
+    expect(await r.prompt('hello')).toMatchObject({ assistantText: '你好 OK', stopReason: 'end_turn' });
+  });
   it('does not forward late reasoning or answer chunks after the prompt has stopped', () => {
     const onUpdate = vi.fn();
     const adapter = runtime({ onUpdate }) as Any;

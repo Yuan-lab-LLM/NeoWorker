@@ -33,6 +33,18 @@ The ownership split is:
 
 In practice, a managed session points at one backing task and optionally one backing team run. Managed-session events mirror sanitized task and daemon events so UI/backend consumers can observe one durable session stream without bypassing the task runtime.
 
+## Durable User Requests and Artifact Revisions
+
+`WorkTurnService` records each dispatched user request separately from the reusable `Task` session. A work turn is a user request, not an individual model call. The additive database migration creates `work_turns`, `work_turn_items`, and `artifact_revisions`; `tasks.current_turn` stores the latest projection for both sidebar and full-task reads. Existing sessions without a projection retain their legacy rendering until their next request.
+
+Initial queued tasks receive an identity before dispatch. An actual follow-up receives a new ordinal; queued follow-up text does not prematurely replace the active request. Explicit restart of an interrupted request keeps its identity. Native execution and Hermes use the same service; the persistent Hermes transport rebinds notifications and host-tool callbacks to each prompt's async context. Late callbacks from an earlier request cannot mutate a newer one. Cancellation becomes durable before asynchronous runtime teardown, and queued children retain their parent's request identity.
+
+The terminal event, its request link, the task projection, and delivery revision metadata commit in one SQLite transaction before broadcasting. `follow_up_completed` only means the executor has produced a reply; the completion gate still decides the outcome. Team completion also accounts for the current request's child outcomes. On daemon restart, unfinished running requests become interrupted; pending approvals and queued requests retain their states.
+
+For tracked requests, the completion gate and delivery manifest inspect the same output candidates. Files must be nonempty, within the workspace or worktree, and written during the request. SHA-256 records distinguish changed versions of the same path; an unchanged previously delivered file is not a new delivery merely because its timestamp changed. Missing files, old inputs, and symlinks outside the workspace do not count as current output. The existing format/content checks still apply. Hashing is streamed and currently limited to 256 MiB per file; larger files are excluded from this manifest. Revision records contain hashes and lineage, not copies of file contents or a restore UI.
+
+Regression coverage lives in `WorkTurnService.test.ts`, `daemon-work-turn.test.ts`, `daemon-complete-task.test.ts`, `hermes-acp-client.test.ts`, and `work-turn-projection.test.ts`. It covers SQLite reopen/rollback, stale callbacks, cancellation, child aggregation, warm Hermes prompts, request-scoped completion gates, and matching live/history projections.
+
 ## Session Forks
 
 Forking creates a new task session from an existing one without starting execution. The forked task receives its own `sessionId` and task row, while lineage is retained through `branchFromTaskId`, optional `branchFromEventId`, and optional `branchLabel`.

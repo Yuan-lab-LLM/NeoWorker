@@ -1,7 +1,14 @@
+import Database from "better-sqlite3";
+import { mkdtempSync, rmSync, writeFileSync, utimesSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { WorkTurnRepository, initializeWorkTurnSchema } from "../../database/WorkTurnRepository";
+import { WorkTurnService } from "../../sessions/WorkTurnService";
 import { describe, expect, it, vi } from "vitest";
 
 import { AgentDaemon } from "../daemon";
 import type { TaskOutputSummary } from "../../../shared/types";
+import { normalizeTaskEventToTimelineV2 } from "../../../shared/timeline-v2";
 import { PersonalityManager } from "../../settings/personality-manager";
 
 vi.mock("electron", () => ({
@@ -97,6 +104,26 @@ function createDaemonLike() {
 }
 
 describe("AgentDaemon.completeTask", () => {
+  it.each([
+    { workerRole: "researcher", parentTaskId: "parent-task", blocked: false },
+    { workerRole: "verifier", parentTaskId: "parent-task", blocked: false },
+    { workerRole: "implementer", parentTaskId: "parent-task", blocked: true },
+    { workerRole: "synthesizer", parentTaskId: "parent-task", blocked: true },
+    { workerRole: "researcher", parentTaskId: undefined, blocked: true },
+    { workerRole: undefined, parentTaskId: "parent-task", blocked: true },
+  ])("enforces the assigned deliverable for $workerRole (parent: $parentTaskId)", ({ workerRole, parentTaskId, blocked }) => {
+    const daemon = createDaemonLike();
+    daemon.taskRepo.findById.mockReturnValue({
+      id: "task-1", title: "北京天气分析", prompt: "分析一下北京天气，输出一个PDF",
+      status: "executing", workspaceId: "workspace-1", parentTaskId, agentType: "sub", workerRole,
+    });
+    AgentDaemon.prototype.completeTask.call(daemon, "task-1", "已核对气象数据来源，以下为供主任务使用的调研结果。", {
+      outputSummary: { created: [], outputCount: 0, folders: [] },
+    });
+    expect(daemon.taskRepo.update).toHaveBeenCalledWith("task-1", expect.objectContaining({ status: blocked ? "failed" : "completed" }));
+    if (!blocked) expect(daemon.logEvent).not.toHaveBeenCalledWith("task-1", "timeline_error", expect.objectContaining({ gate: "completion_required_artifact_gate" }));
+  });
+
   it.each([
     { required: [], created: [], blocked: false },
     { required: [".docx"], created: ["translated.docx"], blocked: false },
@@ -607,6 +634,24 @@ Attached files (relative to workspace):
         keyClaims: ["Median compensation is higher than the current offer."],
       }),
     );
+  });
+
+  it("accepts persisted expert sources without requiring duplicate URLs in its summary", () => {
+    const daemonLike = createDaemonLike();
+    const summary = "The article shows that bandwidth is higher in the measured configuration.";
+    const check = () => (AgentDaemon.prototype as Any).hasEvidenceForKeyClaims.call(
+      daemonLike, "task-1", summary,
+    );
+    expect(check().passed).toBe(false);
+    const event = normalizeTaskEventToTimelineV2({
+      taskId: "task-1", type: "citations_collected", eventId: "source-1", seq: 1, timestamp: Date.now(),
+      payload: { citations: [{ url: "https://example.com/article", title: "Inference research" }] },
+    });
+    (AgentDaemon.prototype as Any).trackEvidenceRefs.call(daemonLike, "task-1", event);
+    expect(check().passed).toBe(true);
+    expect((AgentDaemon.prototype as Any).hasEvidenceForKeyClaims.call(
+      daemonLike, "different-expert", summary,
+    ).passed).toBe(false);
   });
 
   it("ignores numbered section scaffolding when extracting key claims", () => {
@@ -1467,5 +1512,62 @@ Attached files (relative to workspace):
         parentSummary: "done",
       }),
     );
+  });
+});
+
+
+describe("durable team completion contract", () => {
+  it.each([false, true])("requires the requested file to belong to this request (fresh file: %s)", (fresh) => {
+    const root = mkdtempSync(join(tmpdir(), "neoworker-completion-turn-"));
+    const db = new Database(":memory:");
+    try {
+      db.exec("CREATE TABLE tasks (id TEXT PRIMARY KEY); CREATE TABLE task_events (id TEXT PRIMARY KEY); INSERT INTO tasks VALUES ('task-1');");
+      initializeWorkTurnSchema(db);
+      const repo = new WorkTurnRepository(db);
+      const service = new WorkTurnService(repo);
+      const turn = service.begin("task-1");
+      writeFileSync(join(root, "presentation.pptx"), "candidate bytes");
+      if (!fresh) {
+        const earlier = new Date(turn.startedAt - 60_000);
+        utimesSync(join(root, "presentation.pptx"), earlier, earlier);
+      }
+      const daemon = createDaemonLike();
+      daemon.workTurns = service;
+      daemon.workspaceRepo.findById.mockReturnValue({ path: root });
+      daemon.artifactRepo.findByTaskId.mockReturnValue([{ path: "presentation.pptx" }]);
+      daemon.completeTask("task-1", "The requested deck is ready.", {
+        currentTurnRequiredArtifactExtensions: [".pptx"],
+        outputSummary: { created: ["presentation.pptx"], outputCount: 1, folders: [] },
+      });
+      expect(daemon.taskRepo.update).toHaveBeenCalledWith("task-1", expect.objectContaining({ status: fresh ? "completed" : "failed" }));
+      // The gate only validates; revisions are committed atomically with the real terminal event.
+      expect(repo.revisions(turn.id)).toHaveLength(0);
+    } finally {
+      db.close();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([false, true])("does not report full success when current-round members failed (one success: %s)", (oneSuccess) => {
+    const db = new Database(":memory:");
+    try {
+      db.exec("CREATE TABLE tasks (id TEXT PRIMARY KEY); CREATE TABLE task_events (id TEXT PRIMARY KEY); INSERT INTO tasks VALUES ('task-1'), ('a'), ('b');");
+      initializeWorkTurnSchema(db);
+      const repo = new WorkTurnRepository(db);
+      const service = new WorkTurnService(repo);
+      service.begin("task-1");
+      const a = service.begin("a", "task-1");
+      const b = service.begin("b", "task-1");
+      repo.transition("a", a.id, oneSuccess ? "completed" : "failed");
+      repo.transition("b", b.id, "failed");
+      const daemon = createDaemonLike();
+      daemon.workTurns = service;
+      const task = daemon.taskRepo.findById();
+      daemon.taskRepo.findById.mockReturnValue({ ...task, agentConfig: { collaborativeMode: true } });
+      daemon.completeTask("task-1", "The synthesis produced a readable report, but the required research is incomplete.");
+      expect(daemon.taskRepo.update).toHaveBeenCalledWith("task-1", expect.objectContaining({
+        terminalStatus: oneSuccess ? "partial_success" : "failed",
+      }));
+    } finally { db.close(); }
   });
 });

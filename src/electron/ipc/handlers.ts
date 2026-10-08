@@ -6242,6 +6242,10 @@ export async function setupIpcHandlers(
       sourceId: converted.sourceId,
     };
   });
+  ipcMain.handle(IPC_CHANNELS.PERSONAL_ASSISTANT_PROJECT_CREATE, async (_, request) => {
+    checkRateLimit(IPC_CHANNELS.PERSONAL_ASSISTANT_PROJECT_CREATE);
+    return managedSessionService.createPersonalAssistantProject(request);
+  });
   ipcMain.handle(IPC_CHANNELS.MANAGED_ENVIRONMENT_LIST_IPC, async (_, params?: Any) => {
     return managedSessionService.listEnvironments(params);
   });

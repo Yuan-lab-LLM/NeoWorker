@@ -1,3 +1,4 @@
+import { PersonalAssistantContextBar } from "../personal-assistants/PersonalAssistantContextBar";
 import { workspaceDisplayName } from "../../utils/workspace-identity";
 import { serializeNewsTaskMessage, type NewsTaskContext } from "../../../shared/news-task-draft";
 import { NewsTaskSourceCard } from "../NewsTaskSourceCard";
@@ -13042,6 +13043,9 @@ function MainContentComponent({
   // Task view
   return (
     <div className="main-content">
+      {task?.agentConfig?.personalAssistant && (
+        <PersonalAssistantContextBar key={task.id} context={task.agentConfig.personalAssistant} />
+      )}
       {/* Header */}
       <div className="main-header">
         {(task?.parentTaskId || task?.branchFromTaskId) && onSelectTask && (

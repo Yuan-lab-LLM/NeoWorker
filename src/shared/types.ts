@@ -2062,6 +2062,8 @@ export interface IntegrationMentionOption extends IntegrationMentionSelection {
  * Allows spawning agents with different models/personalities than the global settings
  */
 export interface AgentConfig {
+  /** Immutable assistant/project context for this conversation, shared by all entry points. */
+  personalAssistant?: PersonalAssistantContext;
   /** Override the LLM provider type (e.g., 'anthropic', 'gemini') */
   providerType?: LLMProviderType;
   /** Override the model key (e.g., 'opus-4-5', 'sonnet-4-5', 'haiku-4-5') */
@@ -2533,6 +2535,7 @@ export interface OutcomeTemplate {
 }
 
 export interface Task {
+  currentTurn?: import("./work-turn").WorkTurn;
   id: string;
   title: string;
   prompt: string;
@@ -3474,6 +3477,8 @@ export interface TaskTraceRunDetail {
  * `created` is the primary signal; `modifiedFallback` is used only when no created outputs exist.
  */
 export interface TaskOutputSummary {
+  turnId?: string;
+  revisionIds?: string[];
   created: string[];
   modifiedFallback?: string[];
   primaryOutputPath?: string;
@@ -5650,6 +5655,8 @@ export type ManagedEnvironmentKind = "neoworker_local";
 export type ManagedEnvironmentStatus = "active" | "archived";
 
 export interface ManagedEnvironmentConfig {
+  /** Owner of a personal assistant project; never inferred from the current UI workspace. */
+  personalAssistantId?: string;
   workspaceId: string;
   requireWorktree?: boolean;
   enableShell?: boolean;
@@ -5791,6 +5798,22 @@ export interface ManagedAgentFileRef {
   name: string;
   mimeType?: string;
   size?: number;
+}
+
+export interface PersonalAssistantContext {
+  agentId: string;
+  agentName: string;
+  agentVersion: number;
+  environmentId: string;
+  projectName: string;
+  referenceFiles: string[];
+  preferences: string[];
+}
+
+export interface PersonalAssistantProjectInput {
+  agentId: string;
+  name: string;
+  filePaths?: string[];
 }
 
 export interface ManagedAgentMemoryConfig {
@@ -5973,6 +5996,10 @@ export interface ManagedAgentDeploymentConfig {
 }
 
 export interface ManagedAgentStudioConfig {
+  personalAssistant?: {
+    kind: "research" | "documents" | "presentations" | "custom";
+    preferences: string[];
+  };
   templateId?: string;
   workflowBrief?: string;
   appearance?: {
@@ -8545,6 +8572,7 @@ export const IPC_CHANNELS = {
 
   // Agents Hub
   MANAGED_AGENT_LIST_IPC: "managedAgent:listIpc",
+  PERSONAL_ASSISTANT_PROJECT_CREATE: "personalAssistant:createProject",
   MANAGED_AGENT_GET_IPC: "managedAgent:getIpc",
   MANAGED_AGENT_CREATE_IPC: "managedAgent:createIpc",
   MANAGED_AGENT_GENERATE_PLAN_IPC: "managedAgent:generatePlanIpc",

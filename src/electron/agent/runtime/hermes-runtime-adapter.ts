@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import {
   HermesAcpClient, HermesAcpError,
   type AcpObject, type AcpRequestContext, type HermesAcpClientOptions,
@@ -58,6 +59,22 @@ export interface HermesPromptResult {
   sessionId: string;
 }
 
+/** A connection failed before this turn could dispatch any prompt or tools. */
+export class HermesRuntimeStartupError extends HermesAcpError {
+  constructor(
+    error: unknown,
+    readonly stage: "tool_host" | "spawn" | "initialize" | "session" | "checkpoint",
+    readonly toolOwnership: "neoworker" | "hermes",
+  ) {
+    super(
+      `Hermes ACP startup failed during ${stage}: ${error instanceof Error ? error.message : String(error)}`,
+      error instanceof HermesAcpError ? error.code : "HERMES_STARTUP_FAILED",
+      error instanceof HermesAcpError ? error.data : undefined,
+    );
+    this.name = "HermesRuntimeStartupError";
+  }
+}
+
 // Keep a single task's accumulated assistant transcript bounded. Individual
 // ACP frames are already capped by HermesAcpClient, but a long-running session
 // can otherwise append an unbounded number of valid chunks in the Electron
@@ -85,6 +102,7 @@ export class HermesRuntimeAdapter {
   private lastToolBoundary = 0;
   private sawToolActivity = false;
   private acceptingUpdates = false;
+  private runInPromptContext: <T>(callback: () => T) => T = (callback) => callback();
   private connected = false;
   private connecting?: Promise<HermesSessionCheckpoint>;
   private readonly permissions: HermesPermissionBridge;
@@ -97,14 +115,14 @@ export class HermesRuntimeAdapter {
     this.sessionCheckpoint = options.checkpoint;
     this.restoreToolProgress(options.checkpoint?.toolProgress);
     this.permissions = new HermesPermissionBridge(options.onPermissionRequest, options.permissionTimeoutMs);
-    this.client.onRequest = (method, params, context) => {
+    this.client.onRequest = (method, params, context) => this.runInPromptContext(() => {
       if (method === "session/request_permission") {
         return this.permissions.request(params, this.acceptingUpdates ? this.sessionCheckpoint?.sessionId : undefined, context);
       }
       if (options.onRequest) return options.onRequest(method, params, context);
       return Promise.reject(new HermesAcpError("Unsupported client method", -32601));
-    };
-    this.client.onNotification = ({ method, params }) => {
+    });
+    this.client.onNotification = ({ method, params }) => this.runInPromptContext(() => {
       if (method !== "session/update" || params.sessionId !== this.sessionCheckpoint?.sessionId) return;
       const update = params.update;
       if (!update || typeof update !== "object" || Array.isArray(update)) return;
@@ -130,7 +148,7 @@ export class HermesRuntimeAdapter {
       if (this.acceptingUpdates || !["agent_thought_chunk", "agent_message_chunk"].includes(sessionUpdate)) {
         this.options.onUpdate?.(value);
       }
-    };
+    });
   }
 
   connect(): Promise<HermesSessionCheckpoint> {
@@ -146,13 +164,14 @@ export class HermesRuntimeAdapter {
   }
 
   private async open(): Promise<HermesSessionCheckpoint> {
+    let stage: HermesRuntimeStartupError["stage"] = "tool_host";
     try {
       if (this.options.hostToolBridge && !this.hostToolServer) {
         const bridge = this.options.hostToolBridge;
         this.hostToolServer = new HermesToolHostMcpServer({
           ...bridge,
           taskId: bridge.taskId,
-          execute: async (input) => {
+          execute: (input) => this.runInPromptContext(async () => {
             this.markToolBoundary();
             this.updateToolProgress(input.toolCallId, "running");
             // Persist before dispatching the host operation. If persistence
@@ -191,7 +210,7 @@ export class HermesRuntimeAdapter {
               await this.persistCheckpoint();
               throw error;
             }
-          },
+          }),
         });
         this.hostToolServer.suspendToolCalls();
         const endpoint = await this.hostToolServer.start();
@@ -214,11 +233,14 @@ export class HermesRuntimeAdapter {
             },
           }
         : this.options;
+      stage = "spawn";
       await this.client.start(launchOptions);
+      stage = "initialize";
       const init = await this.client.initialize();
       if (init.protocolVersion !== 1) throw new Error("Unsupported Hermes ACP protocol version");
       const agentInfo = init.agentInfo as AcpObject | undefined;
       const agentVersion = String(agentInfo?.version ?? "unknown");
+      stage = "session";
       if (this.sessionCheckpoint) {
         if (this.sessionCheckpoint.schema !== "neoworker_hermes_acp_v1" || this.sessionCheckpoint.cwd !== this.options.cwd) {
           throw new Error("Hermes checkpoint does not match this workspace");
@@ -240,6 +262,7 @@ export class HermesRuntimeAdapter {
         };
       }
       // Persist the stable Hermes session handle before a prompt can run tools.
+      stage = "checkpoint";
       await this.persistCheckpoint();
       this.connected = true;
       return this.getCheckpoint()!;
@@ -249,12 +272,16 @@ export class HermesRuntimeAdapter {
       this.hostToolServer = undefined;
       this.hostToolServerConfig = undefined;
       this.connected = false;
-      throw error;
+      if (this.cancelRequested || (error instanceof HermesAcpError && error.code === "CANCELLED")) throw error;
+      throw new HermesRuntimeStartupError(error, stage, this.options.hostToolBridge ? "neoworker" : "hermes");
     }
   }
 
   prompt(text: string, signal?: AbortSignal): Promise<HermesPromptResult> {
     if (this.activePrompt) return Promise.reject(new HermesAcpError("A Hermes prompt is already running", "SESSION_BUSY"));
+    // ACP and the HTTP tool host can outlive a turn. Rebind their callbacks
+    // to the active request instead of inheriting the first connection's scope.
+    this.runInPromptContext = AsyncLocalStorage.snapshot();
     const prePaused = this.paused;
     this.cancelRequested = prePaused;
     if (!prePaused) this.paused = false;

@@ -114,6 +114,81 @@ describeWithSqlite("ManagedSessionService", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  const createPersonalAssistant = () => service.createAgent({
+    name: "Research assistant", systemPrompt: "Research the current project.", executionMode: "solo",
+    metadata: { studio: { personalAssistant: { kind: "research", preferences: ["Cite sources"] }, memoryConfig: { mode: "disabled" } } },
+  });
+
+  it("persists isolated assistant projects, source copies and conversation identity across service restarts", async () => {
+    const { agent } = createPersonalAssistant();
+    const source = path.join(tmpDir, "EPAI.txt");
+    fs.writeFileSync(source, "EPAI original evidence");
+    const project = await service.createPersonalAssistantProject({ agentId: agent.id, name: "EPAI", filePaths: [source] });
+    const other = await service.createPersonalAssistantProject({ agentId: agent.id, name: "Other topic" });
+    expect(project.config.workspaceId).not.toBe(other.config.workspaceId);
+    expect(project.config.filePaths?.[0]).not.toBe(source);
+    expect(fs.readFileSync(project.config.filePaths![0], "utf8")).toBe("EPAI original evidence");
+    fs.writeFileSync(source, "Changed outside the project");
+    expect(fs.readFileSync(project.config.filePaths![0], "utf8")).toBe("EPAI original evidence");
+    const session = await service.createSession({ agentId: agent.id, environmentId: project.id, title: "Compare EPAI", initialEvent: { type: "user.message", content: [{ type: "text", text: "Compare EPAI" }] } });
+    const task = taskRepo.findById(session.backingTaskId!)!;
+    expect(task.prompt).toContain(project.config.filePaths![0]);
+    expect(task.agentConfig?.personalAssistant).toMatchObject({ agentId: agent.id, environmentId: project.id, projectName: "EPAI", preferences: ["Cite sources"] });
+    const restarted = new ManagedSessionService(db, daemon);
+    expect(restarted.listSessions({ agentId: agent.id })[0].backingTaskId).toBe(task.id);
+    expect(restarted.getEnvironment(project.id)?.config.filePaths).toEqual(project.config.filePaths);
+    await restarted.sendUserMessage(session.id, [{ type: "text", text: "Continue the comparison" }]);
+    expect(daemon.sendMessage).toHaveBeenCalledWith(task.id, "Continue the comparison");
+    expect(taskRepo.findAll().filter((candidate) => candidate.workspaceId === project.config.workspaceId)).toHaveLength(1);
+    const otherSession = await restarted.createSession({ agentId: agent.id, environmentId: other.id, title: "Other topic" });
+    expect(taskRepo.findById(otherSession.backingTaskId!)?.prompt).not.toContain(project.config.filePaths![0]);
+  });
+
+  it("rejects wrong assistant ownership, archived projects and invalid sources before running", async () => {
+    const first = createPersonalAssistant();
+    const second = createPersonalAssistant();
+    const project = await service.createPersonalAssistantProject({ agentId: first.agent.id, name: "Private topic" });
+    await expect(service.createSession({ agentId: second.agent.id, environmentId: project.id, title: "Wrong owner" })).rejects.toThrow("does not belong");
+    service.archiveEnvironment(project.id);
+    await expect(service.createSession({ agentId: first.agent.id, environmentId: project.id, title: "Archived" })).rejects.toThrow("archived");
+    const count = service.listEnvironments().length;
+    await expect(service.createPersonalAssistantProject({ agentId: first.agent.id, name: "Invalid files", filePaths: [tmpDir] })).rejects.toThrow("Not a file");
+    expect(service.listEnvironments()).toHaveLength(count);
+    expect(daemon.startTask).not.toHaveBeenCalled();
+  });
+
+  it("keeps old conversations pinned while new conversations use edited preferences", async () => {
+    const { agent, version } = createPersonalAssistant();
+    const project = await service.createPersonalAssistantProject({ agentId: agent.id, name: "Research" });
+    const first = await service.createSession({ agentId: agent.id, environmentId: project.id, title: "First" });
+    service.updateAgent(agent.id, { metadata: { ...version.metadata, studio: { personalAssistant: { kind: "research", preferences: ["Use English"] } } } });
+    const second = await service.createSession({ agentId: agent.id, environmentId: project.id, title: "Second" });
+    expect(taskRepo.findById(first.backingTaskId!)?.agentConfig?.personalAssistant?.preferences).toEqual(["Cite sources"]);
+    expect(taskRepo.findById(second.backingTaskId!)?.agentConfig?.personalAssistant?.preferences).toEqual(["Use English"]);
+    expect(taskRepo.findById(second.backingTaskId!)?.prompt).toContain("Use English");
+  });
+
+  it("refreshes a completed assistant conversation when its backing task starts a follow-up", async () => {
+    const { agent } = createPersonalAssistant();
+    const project = await service.createPersonalAssistantProject({ agentId: agent.id, name: "Research" });
+    const session = await service.createSession({ agentId: agent.id, environmentId: project.id, title: "First" });
+    taskRepo.update(session.backingTaskId!, { status: "completed" });
+    expect(service.listSessions({ agentId: agent.id })[0].status).toBe("completed");
+    taskRepo.update(session.backingTaskId!, { status: "executing" });
+    expect(service.listSessions({ agentId: agent.id })[0]).toMatchObject({ id: session.id, status: "running", backingTaskId: session.backingTaskId });
+  });
+
+  it("retains a failed assistant start as an openable conversation instead of leaving it pending", async () => {
+    const { agent } = createPersonalAssistant();
+    const project = await service.createPersonalAssistantProject({ agentId: agent.id, name: "Research" });
+    daemon.startTask.mockRejectedValueOnce(new Error("Model unavailable"));
+    const session = await service.createSession({ agentId: agent.id, environmentId: project.id, title: "First" });
+    expect(session).toMatchObject({ status: "failed", latestSummary: "Model unavailable" });
+    expect(taskRepo.findById(session.backingTaskId!)?.status).toBe("failed");
+    expect(service.listSessions({ agentId: agent.id })).toHaveLength(1);
+    expect(service.listSessionEvents(session.id).some(event => event.type === "session.failed")).toBe(true);
+  });
+
   it("repairs legacy generic agent names from their saved task description", () => {
     const created = service.createAgent({
       name: "Personal Agent",

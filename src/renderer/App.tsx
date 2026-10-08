@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { useReplayMode, type ReplayControls } from "./hooks/useReplayMode";
 import { useTaskDuration } from "./hooks/useTaskDuration";
+import { useTaskWorkspace, type TaskWorkspaceError } from "./hooks/use-task-workspace";
 import { Sidebar } from "./components/Sidebar";
 import { CollapsedSidebarRail } from "./components/CollapsedSidebarRail";
 import type { SpreadsheetTurnContext } from "./components/ArtifactTurnProgressPanel";
@@ -153,6 +154,7 @@ import {
 import { isSynthesisChildTask } from "../shared/synthesis-agent-detection";
 import { classifyShellPermissionDecision } from "../shared/shell-permission-intents";
 import { isAutomatedTaskLike } from "../shared/automated-task-detection";
+import { resolveCurrentWorkTurn } from "../shared/work-turn-projection";
 import {
   isActiveTaskStatus,
   resolveTaskStatusUpdateFromEvent,
@@ -319,6 +321,11 @@ const InboxAgentPanel = lazy(() =>
 const SimpleAgentBuilderPanel = lazy(() =>
   import("./components/SimpleAgentBuilderPanel").then((module) => ({
     default: module.SimpleAgentBuilderPanel,
+  })),
+);
+const PersonalAssistantsPanel = lazy(() =>
+  import("./components/personal-assistants/PersonalAssistantsPanel").then((module) => ({
+    default: module.PersonalAssistantsPanel,
   })),
 );
 const EverydayAgentPanel = lazy(() =>
@@ -815,6 +822,7 @@ class WorkbenchPreviewErrorBoundary extends Component<
 const EMPTY_RIGHT_PANEL_INPUT = {
   task: undefined,
   workspace: null,
+  workspaceError: null,
   events: [],
   sharedTaskEventUi: null,
   hasActiveChildren: false,
@@ -993,6 +1001,7 @@ type SelectedTaskWorkspaceViewProps = {
   rightPanelInput: {
     task: Task | undefined;
     workspace: Workspace | null;
+    workspaceError: TaskWorkspaceError | null;
     events: TaskEvent[];
     sharedTaskEventUi: SharedTaskEventUiState | null;
     hasActiveChildren: boolean;
@@ -1003,6 +1012,7 @@ type SelectedTaskWorkspaceViewProps = {
     queueStatus: QueueStatus | null;
     highlightOutputPath: string | null;
   };
+  onRetryWorkspace: () => void;
   onSelectChildTask: (taskId: string) => void;
   onSelectTask: (taskId: string | null) => void;
   onOpenProject?: (projectId: string) => void;
@@ -1079,6 +1089,9 @@ function getAppTaskSignature(task: Task | undefined): string {
     task.id,
     task.title,
     task.status,
+    task.currentTurn?.id ?? "",
+    task.currentTurn?.revision ?? "",
+    task.currentTurn?.state ?? "",
     task.terminalStatus ?? "",
     task.workspaceId,
     task.updatedAt,
@@ -1158,6 +1171,7 @@ const SelectedTaskWorkspaceView = memo(
     browserWorkbenchRequest,
     sideChat,
     rightPanelInput,
+    onRetryWorkspace,
     onSelectChildTask,
     onSelectTask,
     onOpenProject,
@@ -2220,6 +2234,9 @@ const SelectedTaskWorkspaceView = memo(
                 onSelectWorkspace={onSelectWorkspace}
                 task={rightPanelInput.task}
                 workspace={rightPanelInput.workspace}
+                workspaceError={rightPanelInput.workspaceError}
+                onRetryWorkspace={onRetryWorkspace}
+                onChangeWorkspace={onChangeWorkspace}
                 projectId={projectId}
                 sessionTasks={sessionTasks}
                 events={rightPanelInput.events}
@@ -2281,6 +2298,7 @@ const SelectedTaskWorkspaceView = memo(
       next.browserWorkbenchRequest?.requestId &&
     prev.sideChat === next.sideChat &&
     prev.rightPanelInput === next.rightPanelInput &&
+    prev.onRetryWorkspace === next.onRetryWorkspace &&
     prev.onArtifactFocusChange === next.onArtifactFocusChange &&
     prev.onOpenAgentManagement === next.onOpenAgentManagement &&
     prev.onToggleRightSidebar === next.onToggleRightSidebar,
@@ -3705,43 +3723,13 @@ export function App() {
     }
   }, [currentWorkspace?.id]);
 
-  // Sync current workspace to the selected task's workspace
-  useEffect(() => {
-    if (
-      !window.electronAPI?.selectWorkspace ||
-      !window.electronAPI?.getTempWorkspace
-    )
-      return;
-    if (!selectedTaskId) return;
-    if (remoteTaskView) return;
-    if (!selectedTask) return;
-    if (currentWorkspace?.id === selectedTask.workspaceId) return;
-
-    let cancelled = false;
-
-    const loadTaskWorkspace = async () => {
-      const sequence = ++workspaceOpenSequenceRef.current;
-      try {
-        const resolved: Workspace | null =
-          await window.electronAPI.selectWorkspace(selectedTask.workspaceId);
-        if (sequence !== workspaceOpenSequenceRef.current) return;
-        // Never substitute another session’s folder for a missing historical workspace.
-        if (!resolved && !cancelled) setCurrentWorkspace(null);
-        if (!cancelled && resolved) {
-          setCurrentWorkspace((prev) =>
-            prev?.id === resolved.id ? prev : resolved,
-          );
-        }
-      } catch (error) {
-        console.error("Failed to load task workspace:", error);
-      }
-    };
-
-    void loadTaskWorkspace();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedTaskId, selectedTask, currentWorkspace?.id, remoteTaskView]);
+  const taskWorkspace = useTaskWorkspace({
+    task: selectedTaskId ? selectedTask : undefined,
+    workspace: currentWorkspace,
+    setWorkspace: setCurrentWorkspace,
+    requestSequence: workspaceOpenSequenceRef,
+    remote: Boolean(remoteTaskView),
+  });
 
   // Track recency when the active workspace changes
   useEffect(() => {
@@ -4279,6 +4267,7 @@ export function App() {
                     ...prev.parentTask,
                     updatedAt: event.timestamp || prev.parentTask.updatedAt,
                   };
+            nextParentTask.currentTurn = resolveCurrentWorkTurn(prev.parentTask, [event]);
             return { ...prev, parentTask: nextParentTask };
           });
         }
@@ -4303,6 +4292,7 @@ export function App() {
                     ...prev.task,
                     updatedAt: event.timestamp || prev.task.updatedAt,
                   };
+            nextTask.currentTurn = resolveCurrentWorkTurn(prev.task, [event]);
             return {
               ...prev,
               task: nextTask,
@@ -4451,6 +4441,7 @@ export function App() {
                 const updates: Partial<Task> = {
                   status: resolvedStatus,
                   updatedAt: Math.max(t.updatedAt || 0, eventTimestamp),
+                  currentTurn: resolveCurrentWorkTurn(t, [event]),
                 };
                 if (isNewRunStarted) {
                   updates.completedAt = undefined;
@@ -6833,6 +6824,7 @@ export function App() {
       task: rightPanelReplayTask,
       workspace: rightPanelReplayTask && currentWorkspace?.id !== rightPanelReplayTask.workspaceId
         ? null : currentWorkspace,
+      workspaceError: taskWorkspace.error,
       events: rightPanelEvents,
       sharedTaskEventUi: rightPanelSharedTaskEventUi,
       hasActiveChildren: replayControls.isReplayMode
@@ -6849,6 +6841,7 @@ export function App() {
     }),
     [
       currentWorkspace,
+      taskWorkspace.error,
       queueStatus,
       replayControls.isReplayMode,
       rightPanelHasActiveChildren,
@@ -8639,21 +8632,23 @@ export function App() {
                   }}
                 />
               ) : currentView === "everydayAgent" ? (
-                <EverydayAgentPanel
-                  workspace={currentWorkspace}
-                  tasks={tasks}
-                  onOpenMissionControl={handleOpenMissionControl}
-                  onOpenApproval={handleOpenApproval}
-                  onStartNewWork={() => {
-                    void handleStartNewWork();
-                  }}
-                  onCreateTask={(title, prompt) =>
-                    handleCreateTask(title, prompt)
-                  }
-                  onOpenComposerDraft={(draft, targetWorkspace) =>
-                    handleOpenComposerDraft(draft, undefined, targetWorkspace)
-                  }
-                />
+                <PersonalAssistantsPanel onOpenTask={handleOpenManagedAgentTask}>
+                  <EverydayAgentPanel
+                    workspace={currentWorkspace}
+                    tasks={tasks}
+                    onOpenMissionControl={handleOpenMissionControl}
+                    onOpenApproval={handleOpenApproval}
+                    onStartNewWork={() => {
+                      void handleStartNewWork();
+                    }}
+                    onCreateTask={(title, prompt) =>
+                      handleCreateTask(title, prompt)
+                    }
+                    onOpenComposerDraft={(draft, targetWorkspace) =>
+                      handleOpenComposerDraft(draft, undefined, targetWorkspace)
+                    }
+                  />
+                </PersonalAssistantsPanel>
               ) : currentView === "companies" ? (
                 <main className="main-content company-management-main">
                   <CompaniesPanel
@@ -8716,6 +8711,7 @@ export function App() {
                   browserWorkbenchRequest={browserWorkbenchRequest}
                   sideChat={sideChat}
                   rightPanelInput={visibleRightPanelInput}
+                  onRetryWorkspace={taskWorkspace.retry}
                   onSelectChildTask={handleSelectChildTaskFromMainContent}
                   onSelectTask={handleSelectTaskFromShell}
                   onOpenProject={

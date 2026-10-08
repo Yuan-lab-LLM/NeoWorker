@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { initializeWorkTurnSchema } from "./WorkTurnRepository";
 import { randomUUID } from "node:crypto";
 import path from "path";
 import fs from "fs";
@@ -57,6 +58,7 @@ export class DatabaseManager {
 
     phaseStartedAt = Date.now();
     this.initializeSchema();
+    initializeWorkTurnSchema(this.db);
     logStartupPhase("initialize-schema", phaseStartedAt);
 
     phaseStartedAt = Date.now();

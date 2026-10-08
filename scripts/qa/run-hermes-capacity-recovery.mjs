@@ -14,9 +14,8 @@ const load = (file) => require(path.join(root, 'dist/electron/electron', file));
 const { TaskExecutor } = load('agent/executor.js');
 const { HermesRuntimeAdapter } = load('agent/runtime/hermes-runtime-adapter.js');
 const { CronService } = load('cron/service.js');
-const binary = path.join(scratch, 'hermes-acp-neoworker-host');
-fs.copyFileSync(process.env.NEOWORKER_QA_HERMES_BINARY || path.join(root, 'build/hermes-runtime/hermes-acp-neoworker-host'), binary);
-fs.chmodSync(binary, 0o755);
+// Keep the launcher beside its bundled libraries (PyInstaller onedir).
+const binary = process.env.NEOWORKER_QA_HERMES_BINARY || path.join(root, 'build/hermes-runtime/hermes-acp-neoworker-host');
 const answer = '测试天气结果：北京晴，25°C（本地测试数据）。';
 const deliveries = [], retries = [], errors = [], calls = [], sessionIds = [];
 let requestCount = 0, task = { status: 'executing' }, execution;

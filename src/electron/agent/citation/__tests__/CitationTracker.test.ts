@@ -70,6 +70,33 @@ describe("CitationTracker", () => {
 
   // ── getBundle ──────────────────────────────────────────────────
 
+  it("records the successfully fetched page title and final URL", () => {
+    tracker.addFromFetchResult({
+      success: true,
+      url: "https://example.com/redirect",
+      finalUrl: "https://example.com/article",
+      title: "Inference research",
+      content: "An article about inference and data movement.",
+    });
+    expect(tracker.getCitations()).toEqual([
+      expect.objectContaining({ url: "https://example.com/article", title: "Inference research" }),
+    ]);
+  });
+
+  it.each([
+    { success: false, content: "Access denied. Try another source." },
+    { success: true, content: "   " },
+    { success: true, content: undefined },
+  ])("does not count failed or empty fetches as evidence: %j", (result) => {
+    tracker.addFromFetchResult({ ...result, url: "https://example.com/article" });
+    expect(tracker.getCitations()).toEqual([]);
+  });
+
+  it("keeps sources isolated between expert tasks", () => {
+    tracker.addFromFetchResult({ success: true, url: "https://example.com", content: "Read source" });
+    expect(new CitationTracker("another-expert").getCitations()).toEqual([]);
+  });
+
   it("returns a bundle with taskId and citations", () => {
     tracker.addFromFetch("https://example.com", "Example");
     const bundle = tracker.getBundle();

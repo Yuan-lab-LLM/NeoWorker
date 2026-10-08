@@ -81,6 +81,8 @@ describe("English translation completeness", () => {
 
   it("localizes the update settings surface", () => {
     const updateKeys = [
+      "sidebar.update",
+      "sidebar.update.openSettings",
       "updates.kicker",
       "updates.pageTitle",
       "updates.pageDescription",

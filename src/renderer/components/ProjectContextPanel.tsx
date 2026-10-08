@@ -76,6 +76,7 @@ import "./project-context-panel.css";
 import { WorkspaceIdentity } from "./WorkspaceIdentity";
 import { workspaceDisplayName } from "../utils/workspace-identity";
 import type { WorkspaceContextDetails } from "../../shared/types";
+import type { TaskWorkspaceError } from "../hooks/use-task-workspace";
 
 type ProjectPanelTab = "outputs" | "files" | "changes" | "session";
 const projectPanelStateCache = new Map<
@@ -450,6 +451,9 @@ export function deriveRecoveredTemporaryWorkspaceOutputs({
 interface ProjectContextPanelProps {
   task: Task | undefined;
   workspace: Workspace | null;
+  workspaceError?: TaskWorkspaceError | null;
+  onRetryWorkspace?: () => void;
+  onChangeWorkspace?: () => void;
   projectId?: string | null;
   sessionTasks?: Task[];
   events: TaskEvent[];
@@ -1344,6 +1348,9 @@ function formatTime(timestamp?: number): string {
 export function ProjectContextPanel({
   task,
   workspace: providedWorkspace,
+  workspaceError = null,
+  onRetryWorkspace,
+  onChangeWorkspace,
   projectId = null,
   sessionTasks = [],
   events,
@@ -2041,9 +2048,43 @@ export function ProjectContextPanel({
       : translate("workspaceOwnership.unassigned", "Workspace file · origin unrecorded");
   };
 
-  if (!workspace) return <aside className="project-context-panel"><EmptyPanel icon={FolderOpen}
-    title={translate("workspaceOwnership.loading", "Loading workspace…")}
-    detail={translate("workspaceOwnership.loadingDetail", "Files will appear when this conversation’s workspace is ready.")} /></aside>;
+  if (!workspace) {
+    const detail = workspaceError === "missing"
+      ? translate("workspaceOwnership.missingDetail", "The original workspace folder could not be found. Your conversation is still available. Restore the folder and retry, or choose another folder to continue.")
+      : workspaceError === "unavailable"
+        ? translate("workspaceOwnership.unavailableDetail", "The original workspace folder cannot be accessed. Check its location and permissions, then retry.")
+        : workspaceError === "timeout"
+          ? translate("workspaceOwnership.timeoutDetail", "The workspace did not respond in time. Retry or choose another folder to continue.")
+          : workspaceError
+            ? translate("workspaceOwnership.failedDetail", "The workspace could not be loaded. Your conversation is still available. Please retry.")
+            : translate("workspaceOwnership.loadingDetail", "Files will appear when this conversation’s workspace is ready.");
+    return (
+      <aside className="project-context-panel" aria-label={translate("workspaceContext.panel.aria", "Workspace")}>
+        <header className="project-context-header">
+          <div className="project-context-title">
+            <FolderOpen size={18} aria-hidden="true" />
+            <strong>{translate("workspaceOwnership.private", "This conversation’s workspace")}</strong>
+          </div>
+          {onCollapse && <button className="project-icon-button" type="button" onClick={onCollapse}
+            aria-label={translate("workspaceContext.panel.close", "Close workspace panel")}
+            title={translate("workspaceContext.panel.close", "Close workspace panel")}><X size={17} /></button>}
+        </header>
+        <div className="project-context-body">
+          <div role={workspaceError ? "alert" : "status"}>
+            <EmptyPanel icon={FolderOpen}
+              title={workspaceError
+                ? translate("workspaceOwnership.loadFailed", "Workspace unavailable")
+                : translate("workspaceOwnership.loading", "Loading workspace…")}
+              detail={detail} />
+          </div>
+          {workspaceError && <div className="workspace-recovery-actions">
+            {onRetryWorkspace && <button type="button" onClick={onRetryWorkspace}><RefreshCw size={14} />{translate("workspaceOwnership.retry", "Retry loading")}</button>}
+            {onChangeWorkspace && <button type="button" onClick={onChangeWorkspace}><FolderOpen size={14} />{translate("workspaceOwnership.relocate", "Choose a working folder")}</button>}
+          </div>}
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside

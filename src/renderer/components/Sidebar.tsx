@@ -37,7 +37,7 @@ import {
   Wrench,
   Clock3,
   Settings,
-  Download,
+  RefreshCw,
 } from "lucide-react";
 import { resolveTwinIcon } from "../utils/twin-icons";
 import { stripAllEmojis } from "../utils/emoji-replacer";
@@ -2888,16 +2888,16 @@ function SidebarComponent({
             <button
               className="settings-btn cli-settings-btn cli-update-btn"
               onClick={onViewUpdate}
-              title={translate("sidebar.update.download", "Download update")}
+              title={translate("sidebar.update.openSettings", "Open update settings")}
               aria-label={translate(
-                "sidebar.update.download",
-                "Download update",
+                "sidebar.update.openSettings",
+                "Open update settings",
               )}
             >
-              <span className="terminal-only">[download]</span>
+              <span className="terminal-only">[update]</span>
               <span className="modern-only">
-                <Download size={15} strokeWidth={2} />
-                {translate("sidebar.update.downloadAction", "下载")}
+                <RefreshCw size={15} strokeWidth={2} aria-hidden="true" />
+                {translate("sidebar.update", "Update")}
               </span>
             </button>
           )}

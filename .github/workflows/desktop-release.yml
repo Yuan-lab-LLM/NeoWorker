@@ -143,6 +143,8 @@ jobs:
           node --test scripts/qa/desktop-smoke-process.test.mjs
       - name: PDF delivery regressions
         run: npx vitest --config config/vitest.config.ts run src/electron/utils/__tests__/pdf-generator.test.ts src/electron/utils/__tests__/pdf-math.test.ts src/electron/agent/__tests__/verified-delivery-artifacts.test.ts src/renderer/components/__tests__/ProjectContextPanel.test.ts src/renderer/components/__tests__/main-content-working-state.test.ts --maxWorkers=1
+      - name: Expert evidence, turn state and assistant regressions
+        run: npx vitest --config config/vitest.config.ts run src/electron/agent/__tests__/executor-completion-contract.test.ts src/electron/agent/__tests__/executor-hermes-recovery.test.ts src/electron/agent/citation/__tests__/CitationTracker.test.ts src/electron/agent/__tests__/daemon-complete-task.test.ts src/electron/agent/__tests__/daemon-work-turn.test.ts src/electron/sessions/__tests__/WorkTurnService.test.ts src/renderer/utils/__tests__/work-turn-projection.test.ts src/renderer/hooks/__tests__/use-task-workspace.test.ts src/renderer/components/__tests__/personal-assistants.test.ts src/renderer/i18n/__tests__/english-completeness.test.ts --maxWorkers=1
       - name: Conversation history regressions
         run: npx vitest --config config/vitest.config.ts run src/electron/database/__tests__/task-event-repository-timeline-page.test.ts src/electron/database/__tests__/task-event-repository-create.test.ts src/electron/database/__tests__/task-event-repository-replay.test.ts src/renderer/__tests__/task-event-stream.test.ts src/renderer/__tests__/app-history-load-failure.test.ts src/renderer/utils/__tests__/task-event-stream.test.ts src/renderer/utils/__tests__/task-event-append.test.ts src/renderer/utils/__tests__/task-event-detail-cache.test.ts --maxWorkers=1
       - name: PPT content-editing regressions
@@ -187,6 +189,21 @@ jobs:
           node node_modules/electron/cli.js scripts/qa/pdf-math-smoke.cjs
       - name: Scan packaged app for secrets
         run: npm run package:secrets:verify
+      - name: Verify five concurrent packaged expert runtimes
+        shell: bash
+        run: |
+          node --input-type=module - <<'NODE'
+          import path from 'node:path';
+          import { spawnSync } from 'node:child_process';
+          const binary = process.platform === 'darwin'
+            ? 'release/mac-arm64/NeoWorker.app/Contents/Resources/hermes-runtime/hermes-acp-neoworker-host'
+            : 'release/win-unpacked/resources/hermes-runtime/hermes-acp-neoworker-host.exe';
+          const result = spawnSync(process.execPath, ['scripts/qa/hermes-team-startup.mjs'], {
+            stdio: 'inherit', env: { ...process.env, NEOWORKER_QA_HERMES_BINARY: path.resolve(binary) },
+          });
+          if (result.error) throw result.error;
+          process.exit(result.status ?? 1);
+          NODE
       - name: Install, launch and uninstall Windows app
         if: runner.os == 'Windows'
         shell: bash

@@ -3151,6 +3151,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_PREVIEW, id),
 
   // Agents Hub APIs
+  createPersonalAssistantProject: (request: import("../shared/types").PersonalAssistantProjectInput) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PERSONAL_ASSISTANT_PROJECT_CREATE, request) as Promise<ManagedEnvironment>,
   listManagedAgents: (params?: {
     limit?: number;
     offset?: number;
@@ -7105,6 +7107,7 @@ export interface ElectronAPI {
   }>;
   listArtifacts: (taskId: string) => Promise<Any[]>;
   previewArtifact: (id: string) => Promise<Any>;
+  createPersonalAssistantProject: (request: import("../shared/types").PersonalAssistantProjectInput) => Promise<ManagedEnvironment>;
   listManagedAgents: (params?: {
     limit?: number;
     offset?: number;

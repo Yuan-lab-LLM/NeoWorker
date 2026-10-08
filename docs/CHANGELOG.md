@@ -9,14 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.5] - 2026-10-05
 
+Republished on 2026-10-08 under the same `v0.2.5` tag. Existing 0.2.5 installations must download and reinstall this build; the unchanged version is not a higher-version automatic update.
+
 ### Added
 
+- Persistent personal assistants with project-specific source copies, saved preferences and resumable conversations, alongside the existing daily assistant.
+- Durable per-turn state and artifact revisions so later queries, cancellations and reopened conversations retain their own status and outputs.
 - Presentation Studio layout and template catalogs, source-figure extraction, native slide editing, and packaged-runtime verification.
 - Browser page translation and selection-aware reading actions, with expanded news categories, source images, and translation support.
 - Regression coverage for model-switch recovery, task queue isolation, team lifecycle state, artifact ownership, and connector launch environments.
 
 ### Fixed
 
+- Prevent parallel expert startup from repeatedly unpacking the bundled execution engine; bound startup recovery and report startup failures without masking them as missing deliverables.
+- Evaluate read-only researchers and verifiers on findings rather than requiring each expert to create a separate copy of the parent's requested document.
+- Pass collected source citations into completion checks for successful external-runtime research, avoiding false partial-completion results; failed and empty fetches do not count as evidence.
+- Recover the workspace panel from missing folders, failed loads and timeouts with close, retry and folder-selection controls.
+- Label the available-version sidebar entry “更新” / “Update” with a matching update icon and localized accessibility text.
 - Honor the selected provider and model after a failed turn; replace stale Hermes connections while preserving the conversation, and apply queued model choices only when their turn starts.
 - Align team member names and history across session and conversation views; improve cancellation, completion reporting, and completed-team wrap-up controls during later queries.
 - Restrict final presentation delivery to verified outputs from the current task, preserving source material and preventing old uploads from appearing as newly generated deliverables.
@@ -27,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Build the platform-specific execution runtime from its pinned source during packaging instead of committing generated binaries to the source tree.
 - Bundle the updated Hermes host runtime and required presentation dependencies for desktop distribution.
 - Expand Windows installer checks for model configuration, document rendering, browser actions, news feeds, and scheduled tasks.
 

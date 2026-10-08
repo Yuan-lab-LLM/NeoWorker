@@ -190,7 +190,10 @@ function pyInstallerArguments(python, target, tempRoot) {
   return [
     "-m",
     "PyInstaller",
-    "--onefile",
+    // Team members start separate ACP processes. A one-file executable unpacks
+    // the entire Python runtime for every member before initialize can reply.
+    // Ship the runtime alongside the launcher so parallel starts share files.
+    "--onedir",
     "--noconfirm",
     "--clean",
     "--name",
@@ -251,7 +254,8 @@ async function main() {
     log(`Building Hermes Agent ${HERMES_VERSION} ACP host for ${target.name}.`);
     run(python, pyInstallerArguments(python, target, tempRoot));
 
-    const builtBinary = path.join(tempRoot, "dist", executableFilename(target.platform));
+    const builtDistribution = path.join(tempRoot, "dist", EXECUTABLE_BASENAME);
+    const builtBinary = path.join(builtDistribution, executableFilename(target.platform));
     if (!fs.existsSync(builtBinary)) fail(`PyInstaller did not produce ${builtBinary}`);
     const probe = run(builtBinary, ["--neoworker-runtime-check"], { capture: true });
     let probeResult;
@@ -270,10 +274,11 @@ async function main() {
     }
 
     await fsp.rm(OUTPUT_ROOT, { recursive: true, force: true });
-    await fsp.mkdir(OUTPUT_ROOT, { recursive: true });
+    // Preserve relative framework/library symlinks when relocating the bundle.
+    await fsp.cp(builtDistribution, OUTPUT_ROOT, { recursive: true, verbatimSymlinks: true });
     const destination = path.join(OUTPUT_ROOT, executableFilename(target.platform));
-    await fsp.copyFile(builtBinary, destination);
     if (target.platform !== "win32") await fsp.chmod(destination, 0o755);
+    run(destination, ["--neoworker-runtime-check"], { capture: true });
     await copyHermesLicense(python);
     const manifest = {
       name: "NeoWorker embedded Hermes ACP runtime",
@@ -281,6 +286,7 @@ async function main() {
       pyInstallerVersion: PYINSTALLER_VERSION,
       platform: target.platform,
       arch: target.arch,
+      distribution: "onedir",
       executable: executableFilename(target.platform),
       sha256: sha256(destination),
       license: "MIT",

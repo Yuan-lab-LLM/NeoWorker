@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProjectContextPanel } from "../ProjectContextPanel";
 import { WorkspaceIdentity } from "../WorkspaceIdentity";
 import { workspaceDisplayName } from "../../utils/workspace-identity";
+import { translate } from "../../i18n";
 import type { Task, Workspace } from "../../../shared/types";
 
 const workspace = { id: "__temp_workspace__:ui-one", name: "Temporary Workspace", path: "/tmp/one", isTemp: true } as Workspace;
@@ -51,6 +52,35 @@ describe("workspace ownership UI", () => {
     expect(html).toContain("正在加载工作区");
     expect(html).not.toContain("Temporary Workspace");
     expect(html).not.toContain("/tmp/one");
+  });
+  it("keeps the panel close button available while a workspace is loading", async () => {
+    setup({});
+    const onCollapse = vi.fn();
+    await act(async () => { renderer = create(React.createElement(ProjectContextPanel, {
+      workspace: null, task, events: [], onCollapse,
+    })); });
+    expect(JSON.stringify(renderer!.toJSON())).toContain("正在加载工作区");
+    await act(async () => renderer!.root.findByProps({ "aria-label": translate("workspaceContext.panel.close", "Close workspace panel") }).props.onClick());
+    expect(onCollapse).toHaveBeenCalledOnce();
+  });
+  it("shows a missing-folder error with working recovery actions, without leaking the previous folder", async () => {
+    setup({});
+    const onRetryWorkspace = vi.fn();
+    const onChangeWorkspace = vi.fn();
+    await act(async () => { renderer = create(React.createElement(ProjectContextPanel, {
+      workspace, task: { ...task, workspaceId: "missing" }, events: [],
+      workspaceError: "missing", onRetryWorkspace, onChangeWorkspace,
+    })); });
+    const html = JSON.stringify(renderer!.toJSON());
+    expect(html).toContain("未找到这个会话原来使用的工作区文件夹");
+    expect(html).not.toContain("正在加载工作区");
+    expect(html).not.toContain("/tmp/one");
+    expect(renderer!.root.findByProps({ role: "alert" })).toBeTruthy();
+    const button = (label: string) => renderer!.root.findAllByType("button").find(node => node.children.includes(label))!;
+    await act(async () => button("重新加载").props.onClick());
+    await act(async () => button("选择工作文件夹").props.onClick());
+    expect(onRetryWorkspace).toHaveBeenCalledOnce();
+    expect(onChangeWorkspace).toHaveBeenCalledOnce();
   });
   it("discards a late file response and defaults to outputs after switching tasks", async () => {
     let resolveOld!: (value: unknown[]) => void;

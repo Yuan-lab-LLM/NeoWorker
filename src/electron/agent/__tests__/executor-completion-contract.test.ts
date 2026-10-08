@@ -4,6 +4,7 @@ import * as os from "os";
 import * as path from "path";
 import { createHash } from "crypto";
 import { TaskExecutor } from "../executor";
+import { CitationTracker } from "../citation/CitationTracker";
 import {
   buildCompletionContract,
   buildCompletionGuidancePrompt,
@@ -3212,6 +3213,36 @@ Recommendation: update docs/automation.md because scheduled task docs are stale.
         waiveFailedStepIds: expect.arrayContaining(["2"]),
       }),
     );
+  });
+
+  it.each([true, false])("hands Hermes sources to the evidence gate before completion (fetch success: %s)", (success) => {
+    const summary = "The article shows that bandwidth is higher in the measured configuration.";
+    const executor = createExecuteHarness({ prompt: "Analyze the article", lastOutput: summary });
+    const tracker = new CitationTracker("task-1");
+    tracker.addFromFetchResult({
+      success,
+      url: "https://example.com/article",
+      title: "Inference research",
+      content: success ? "Measured inference results." : "Source unavailable",
+    });
+    (executor as Any).citationTracker = tracker;
+
+    (executor as Any).finalizeTaskBestEffort(summary, "hermes runtime completed");
+
+    const log = executor.daemon.logEvent;
+    const citationCall = log.mock.calls.findIndex((call) => call[1] === "citations_collected");
+    expect(executor.daemon.completeTask).toHaveBeenCalledOnce();
+    if (success) {
+      expect(citationCall).toBeGreaterThanOrEqual(0);
+      expect(log.mock.calls[citationCall][2].citations).toEqual([
+        expect.objectContaining({ url: "https://example.com/article", sourceTool: "web_fetch" }),
+      ]);
+      expect(log.mock.invocationCallOrder[citationCall]).toBeLessThan(
+        executor.daemon.completeTask.mock.invocationCallOrder[0],
+      );
+    } else {
+      expect(citationCall).toBe(-1);
+    }
   });
 
   it("reports timed out research when tool evidence exists but no substantive answer was produced", () => {

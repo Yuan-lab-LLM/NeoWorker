@@ -78,6 +78,11 @@
 
 .project-header-actions { display: inline-flex; align-items: center; gap: 2px; }
 
+.workspace-recovery-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
+.workspace-recovery-actions button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid #d9e1ec; border-radius: 7px; background: #fff; color: #286cc0; font: inherit; font-size: 12px; cursor: pointer; }
+.workspace-recovery-actions button:hover { background: #f0f6ff; }
+.workspace-recovery-actions button:focus-visible { outline: 2px solid #1e8df6; outline-offset: 2px; }
+
 .project-icon-button {
   width: 30px;
   height: 30px;

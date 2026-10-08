@@ -1,3 +1,4 @@
+import { resolveCurrentWorkTurn } from "../../shared/work-turn-projection";
 import { Task, TaskEvent, TaskOutputSummary } from "../../shared/types";
 import { getEffectiveTaskEventType } from "./task-event-compat";
 import { extractAssistantMediaDirectives } from "./assistant-media-directives";
@@ -130,6 +131,8 @@ function stripDirectoriesFromSummary(
   return {
     created,
     ...(modifiedFallback.length > 0 ? { modifiedFallback } : {}),
+    ...(summary.turnId ? { turnId: summary.turnId } : {}),
+    ...(summary.revisionIds ? { revisionIds: summary.revisionIds } : {}),
     primaryOutputPath,
     outputCount: effective.length,
     folders: deriveFolders(effective),
@@ -162,6 +165,8 @@ export function sanitizeTaskOutputSummary(
     primaryOutputPath?: unknown;
     outputCount?: unknown;
     folders?: unknown[];
+    turnId?: unknown;
+    revisionIds?: unknown[];
   };
 
   const created = toUniqueNormalizedPaths(
@@ -195,6 +200,9 @@ export function sanitizeTaskOutputSummary(
     ...(modifiedFallback.length > 0 ? { modifiedFallback } : {}),
     primaryOutputPath,
     outputCount,
+    ...(isNonEmptyString(candidate.turnId) ? { turnId: candidate.turnId } : {}),
+    ...(Array.isArray(candidate.revisionIds)
+      ? { revisionIds: candidate.revisionIds.filter(isNonEmptyString) } : {}),
     folders:
       foldersFromPayload.length > 0
         ? foldersFromPayload
@@ -307,6 +315,9 @@ export function resolveTaskOutputSummaryFromCompletionEvent(
   // outputSummary invisible after history rehydration, so artifact cards stayed
   // anchored to the earlier file event and appeared above the final answer.
   if (getEffectiveTaskEventType(event) !== "task_completed") return null;
+  if (event.payload?.workTurnId) {
+    return sanitizeTaskOutputSummary(event.payload?.workTurn?.outputSummary ?? event.payload?.outputSummary);
+  }
   const directoryPaths = collectDirectoryPaths(fallbackEvents);
   const hasAuthoritativeOutputSummary =
     event.payload?.outputSummary !== null &&
@@ -343,9 +354,10 @@ export function hasTaskOutputs(
 }
 
 export function resolveTaskOutputSummaryFromTask(
-  task?: Pick<Task, "bestKnownOutcome"> | null,
+  task?: Pick<Task, "bestKnownOutcome" | "currentTurn"> | null,
   fallbackEvents?: TaskEvent[],
 ): TaskOutputSummary | null {
+  if (task?.currentTurn) return sanitizeTaskOutputSummary(task.currentTurn.outputSummary);
   return stripDirectoriesFromSummary(
     sanitizeTaskOutputSummary(task?.bestKnownOutcome?.outputSummary),
     collectDirectoryPaths(fallbackEvents),
@@ -353,10 +365,15 @@ export function resolveTaskOutputSummaryFromTask(
 }
 
 export function resolvePreferredTaskOutputSummary(params: {
-  task?: Pick<Task, "bestKnownOutcome"> | null;
+  task?: Pick<Task, "bestKnownOutcome" | "currentTurn"> | null;
   latestCompletionEvent?: TaskEvent | null;
   fallbackEvents?: TaskEvent[];
 }): TaskOutputSummary | null {
+  const turn = resolveCurrentWorkTurn(
+    params.task?.currentTurn ? { id: params.task.currentTurn.taskId, currentTurn: params.task.currentTurn } : undefined,
+    params.fallbackEvents,
+  );
+  if (turn) return sanitizeTaskOutputSummary(turn.outputSummary);
   if (params.latestCompletionEvent) {
     const fromCompletion = resolveTaskOutputSummaryFromCompletionEvent(
       params.latestCompletionEvent,

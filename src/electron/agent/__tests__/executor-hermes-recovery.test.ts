@@ -6,7 +6,7 @@ import { getDocumentTranslationToolError, resolveDocumentTranslationContract } f
 import { DocumentTools } from "../tools/document-tools";
 import { ToolRegistry } from "../tools/registry";
 import { HermesAcpClient, HermesAcpError } from "../runtime/hermes-acp-client";
-import type { HermesRuntimeAdapter } from "../runtime/hermes-runtime-adapter";
+import { HermesRuntimeStartupError, type HermesRuntimeAdapter } from "../runtime/hermes-runtime-adapter";
 
 const cwd = __dirname;
 const fixture = path.join(
@@ -73,6 +73,62 @@ function adapter(instance: TaskExecutor) {
 }
 
 describe("Executor Hermes recovery", () => {
+  it("restarts a failed host-owned initialization without requiring a session checkpoint", async () => {
+    const instance = executor([]) as Any;
+    instance.waitForHermesRetryDelay = vi.fn(async () => {});
+    const error = new HermesRuntimeStartupError(
+      new HermesAcpError("initialize timed out", "FIRST_BYTE_TIMEOUT"), "initialize", "neoworker",
+    );
+    const result = { assistantText: "done", stopReason: "end_turn", sessionId: "new-session" };
+    const runtime = {
+      getCheckpoint: () => undefined,
+      prompt: vi.fn().mockRejectedValueOnce(error).mockResolvedValueOnce(result),
+      retry: vi.fn(),
+    };
+    await expect(instance.runHermesPromptWithTransientRetry(runtime, "北京天气", false)).resolves.toEqual(result);
+    expect(runtime.prompt).toHaveBeenCalledTimes(2);
+    expect(runtime.retry).not.toHaveBeenCalled();
+    expect(instance.emitEvent).toHaveBeenCalledWith("log", expect.objectContaining({ startupStage: "initialize", safeForAutomaticRetry: true }));
+  });
+
+  it("bounds startup retries and preserves the startup cause instead of generating a recovery summary", async () => {
+    const instance = executor([]) as Any;
+    instance.waitForHermesRetryDelay = vi.fn(async () => {});
+    instance.taskRequiresSimplifiedChineseOutput = () => true;
+    instance.buildTimeoutRecoveryAnswer = vi.fn();
+    instance.finalizeTaskBestEffort = vi.fn();
+    const error = new HermesRuntimeStartupError(
+      new HermesAcpError("initialize timed out", "FIRST_BYTE_TIMEOUT"), "initialize", "neoworker",
+    );
+    const runtime = { getCheckpoint: () => undefined, prompt: vi.fn().mockRejectedValue(error), retry: vi.fn() };
+    await expect(instance.runHermesPromptWithTransientRetry(runtime, "北京天气，输出PDF", false)).rejects.toBe(error);
+    expect(runtime.prompt).toHaveBeenCalledTimes(2);
+    expect(runtime.retry).not.toHaveBeenCalled();
+    expect(await instance.finalizeWithTimeoutRecovery(error)).toBe(false);
+    expect(instance.shouldFinalizeAsPartialSuccess(error)).toBe(false);
+    expect(instance.buildTimeoutRecoveryAnswer).not.toHaveBeenCalled();
+    expect(instance.finalizeTaskBestEffort).not.toHaveBeenCalled();
+    expect(instance.classifyFailure(error)).toBe("dependency_unavailable");
+    expect(instance.isTransientProviderError(error)).toBe(false);
+    expect(instance.buildTaskFailureMessage(error, "dependency_unavailable")).toContain("执行引擎未能启动");
+    expect(instance.buildFollowUpFailureMessage(error)).toContain("执行引擎未能启动");
+    instance.taskRequiresSimplifiedChineseOutput = () => false;
+    expect(instance.buildTaskFailureMessage(error, "dependency_unavailable")).toContain("execution engine could not start");
+  });
+
+  it.each([
+    new HermesAcpError("prompt timed out", "FIRST_BYTE_TIMEOUT"),
+    new HermesRuntimeStartupError(new HermesAcpError("initialize timed out", "FIRST_BYTE_TIMEOUT"), "initialize", "hermes"),
+    new HermesRuntimeStartupError(new HermesAcpError("missing executable", "HERMES_UNAVAILABLE"), "spawn", "neoworker"),
+    new HermesRuntimeStartupError(new HermesAcpError("cancelled", "CANCELLED"), "initialize", "neoworker"),
+  ])("does not start a fresh session for an unsafe or permanent failure ($code)", async error => {
+    const instance = executor([]) as Any;
+    const runtime = { getCheckpoint: () => undefined, prompt: vi.fn().mockRejectedValue(error), retry: vi.fn() };
+    await expect(instance.runHermesPromptWithTransientRetry(runtime, "task", false)).rejects.toBe(error);
+    expect(runtime.prompt).toHaveBeenCalledOnce();
+    expect(runtime.retry).not.toHaveBeenCalled();
+  });
+
   it("turns reasoning chunks into throttled activity signals without exposing their content", () => {
     const instance = executor([]) as Any;
     const runtime = adapter(instance) as Any;

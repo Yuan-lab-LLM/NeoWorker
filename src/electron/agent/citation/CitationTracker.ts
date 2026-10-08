@@ -54,6 +54,18 @@ export class CitationTracker {
     });
   }
 
+  /** Failed/skipped fetches may resolve normally; they are not source evidence. */
+  addFromFetchResult(result: {
+    success: boolean;
+    url: string;
+    finalUrl?: string;
+    title?: string;
+    content?: string;
+  }): void {
+    if (!result.success || !result.content?.trim()) return;
+    this.addFromFetch(result.finalUrl || result.url, result.title);
+  }
+
   /** Return all collected citations. */
   getCitations(): Citation[] {
     return this.citations.slice();
